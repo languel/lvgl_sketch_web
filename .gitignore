@@ -1,0 +1,43 @@
+# Arduino and C++
+*.o
+*.d
+*.elf
+*.bin
+*.map
+*.hex
+*.a
+*.pyc
+*.pyo
+*.swp
+*.DS_Store
+*.log
+*.suo
+*.sdf
+*.opensdf
+*.user
+*.sln
+*.vcxproj*
+*.vscode/
+*.idea/
+*.vs/
+*.ccls-cache/
+*.clangd/
+*.code-workspace
+
+# Arduino build folders
+build/
+
+# Arduino libraries (if you use a local libraries folder)
+libraries/
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# MacOS
+.DS_Store
+
+# Other
+*.bak
+*.tmp

@@ -1,0 +1,92 @@
+# LVGL WebSocket Generative Art Demo
+
+This project demonstrates a generative art application running on an ESP32 with a display, using the LVGL graphics library. The device connects to Wi-Fi and acts as a WebSocket client, allowing real-time control of the visuals from a web interface or other WebSocket server. It also supports receiving and displaying small images sent as Base64-encoded JPEGs.
+
+## Features
+
+- **LVGL Canvas Drawing:** Generative art is rendered on an LVGL canvas, with parameters controlled remotely.
+- **Wi-Fi Connection:** The ESP32 connects to a specified Wi-Fi network on boot.
+- **WebSocket Client:** The device connects to a WebSocket server (e.g., TouchDesigner, Node.js, or Python server) and listens for control messages.
+- **Real-Time Control:** Supports remote control of drawing parameters via messages of type `slider`, `number`, and `text`.
+- **Temporary Text Display:** Incoming text messages are displayed on the screen for a few seconds, with font size controlled by the slider.
+- **Image Display:** Supports receiving small JPEG images as Base64 strings and displaying them on the screen (requires LVGL JPEG decoder enabled).
+
+## File Structure
+
+- `lvgl_sketch_web.ino` — Main Arduino sketch. Handles Wi-Fi, WebSocket, and event dispatch.
+- `sketch.cpp` / `sketch.h` — Generative art logic, LVGL canvas setup, and UI event handling.
+- `base64_utils.cpp` / `base64_utils.h` — Lightweight Base64 decoder for handling image data.
+- `Display_ST7701.*`, `LVGL_Driver.*`, `TCA9554PWR.*`, etc. — Hardware and display drivers.
+- `webui/` — Contains the web interface (e.g., `index.html`) for controlling the device.
+- `.gitignore` — Standard ignores for Arduino/C++/PlatformIO projects.
+
+## Usage
+
+### 1. Hardware Requirements
+
+- ESP32 board with PSRAM (recommended for LVGL canvas and image buffers)
+- ST7701-based display (or compatible, as per your drivers)
+- Touch input optional (for future expansion)
+
+### 2. Configuration
+
+- Edit `lvgl_sketch_web.ino` to set your Wi-Fi credentials:
+
+  ```cpp
+  const char *WIFI_SSID = "YourNetwork";
+  const char *WIFI_PASSWORD = "YourPassword";
+  ```
+
+- Set your WebSocket server IP and port:
+
+  ```cpp
+  const char* WEBSOCKET_SERVER_IP = "192.168.x.x";
+  const uint16_t WEBSOCKET_SERVER_PORT = 5001;
+  ```
+
+### 3. Building and Uploading
+
+- Open the project in Arduino IDE or PlatformIO.
+- Select the correct ESP32 board and port.
+- Build and upload as usual.
+
+### 4. WebSocket Server
+
+- You can use the included `webui/index.html` as a web client, or run a compatible WebSocket server (e.g., TouchDesigner, Node.js, Python).
+- The server should:
+
+  - Accept connections on the specified port.
+  - Send JSON messages of the form:
+
+    - `{ "type": "slider", "value": 0.5 }`
+    - `{ "type": "number", "value": 2 }`
+    - `{ "type": "text", "value": "Hello!" }`
+    - `{ "type": "image", "mime": "image/jpeg", "data": "...base64..." }`
+
+### 5. Controls
+
+- **Slider:** Controls a visual parameter (e.g., line width, font size).
+- **Number:** Controls another parameter (e.g., arc width, position range).
+- **Text:** Displays a temporary label in the center of the screen, font size set by slider.
+- **Image:** If a small JPEG is sent as Base64, it will be decoded and displayed (see notes below).
+
+### 6. Image Support Notes
+
+- Only small JPEGs (e.g., 16x16) are supported due to memory and performance constraints.
+- LVGL must be configured with JPEG decoder support (`LV_USE_LIBJPEG_TURBO` or `LV_USE_TJPGD` in `lv_conf.h`).
+- The Base64 decoder is custom and expects standard Base64 encoding.
+
+### 7. Extending
+
+- You can add more message types or controls by expanding the JSON parsing in `webSocketEvent` and updating the drawing logic in `sketch.cpp`.
+- Touch input can be enabled for local interaction.
+
+## Troubleshooting
+
+- If the device reboots or crashes, check for memory issues or conflicts between Wi-Fi and LVGL initialization order.
+- If images do not display, ensure JPEG decoder is enabled in LVGL and the image is small enough to fit the buffer.
+- If the WebSocket connection drops when sending large images, reduce image size or send less frequently.
+
+## License
+
+This project is for educational and prototyping use. See individual library licenses for LVGL and other dependencies.
