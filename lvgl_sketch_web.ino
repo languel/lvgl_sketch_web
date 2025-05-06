@@ -8,8 +8,8 @@
 #include "sketch.h"
 #include <ArduinoJson.h> // Include ArduinoJson library
 
-const char *WIFI_SSID = "Pratt Institute";
-const char *WIFI_PASSWORD = "";
+const char *WIFI_SSID = "Pratt Institute"; // <-- IMPORTANT: Replace with your Wi-Fi SSID
+const char *WIFI_PASSWORD = "";              // <-- IMPORTANT: Replace with your Wi-Fi Password
 
 // --- WebSocket Settings ---
 const char* WEBSOCKET_SERVER_IP = "10.16.48.206"; // <-- IMPORTANT: Replace with your server's IP address

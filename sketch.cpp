@@ -1,11 +1,9 @@
-// #define LV_USE_PNG 1
 
 #include "sketch.h"
 #include <Arduino.h>
 #include <lvgl.h>
 #include "esp_heap_caps.h"
 #include "base64_utils.h"
-// #include <lv_png.h>
 
 #define CANVAS_WIDTH 480
 #define CANVAS_HEIGHT 480
@@ -39,7 +37,6 @@ static const lv_color_t palette[] = {
     lv_color_make(0, 0, 128),   // navy
     lv_color_make(0, 0, 255),   // blue
     lv_color_make(0, 191, 255), // deepskyblue
-
 };
 
 // palette = ["red","gold","pink",color(255,33,2)] //p5code
