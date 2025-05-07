@@ -160,5 +160,5 @@ ws.onmessage=({data})=>{const m=JSON.parse(data);
 4. Toggle **send canvas**—watch the p5 pointillism stream back into `canvas_rx`.  
 5. Pipe any TD TOP into `null1_img`—the browser repaints your live source.
 
-We have a fully bi‑directional, code‑light WebSocket bridge:
+We have a bi‑directional, code‑light WebSocket bridge:
 ![TD<->browser](td_websocket_demo.png)
