@@ -1,3 +1,33 @@
+# Drawing Algorithm Control via WebSocket
+
+You can control which generative art algorithms are active on the ESP32 device by sending text commands over WebSocket. These commands are parsed in real time and toggle the drawing routines:
+
+## Drawing Commands
+
+- `r0 on` / `r0 off` — Enable/disable the image background (JPEG sent via WebSocket as Base64).
+- `r1 on` / `r1 off` — Enable/disable random lines (opacity and thickness controlled by slider/number).
+- `r2 on` / `r2 off` — Enable/disable random triangles (opacity and size controlled by slider/number).
+- `r3 on` / `r3 off` — Enable/disable random arcs (opacity and thickness controlled by slider/number).
+- `r4 on` / `r4 off` — Enable/disable extra drawing mode (customizable).
+- `clear` — Immediately clears the canvas and removes the image background.
+
+You can send these commands repeatedly; each will be processed every time.
+
+### Example Usage
+
+- To show only the image background: `r0 on`, `r1 off`, `r2 off`, `r3 off`, `r4 off`
+- To enable lines and triangles: `r1 on`, `r2 on`
+- To clear the screen: `clear`
+
+### WebSocket Message Format
+
+Send a JSON message of type `text` with the command as the value:
+
+```json
+{ "type": "text", "value": "r2 on" }
+```
+
+Or use the provided web UI to send commands directly.
 # LVGL WebSocket Generative Art Demo
 
 **IMPORTANT: To run this project, you MUST configure your Wi-Fi and WebSocket server details. See 'Quick Start Configuration' below.**
