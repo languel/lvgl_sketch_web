@@ -31,8 +31,6 @@ Or use the provided web UI to send commands directly.
 
 ## LVGL WebSocket Generative Art Demo
 
-**IMPORTANT: To run this project, you MUST configure your Wi-Fi and WebSocket server details. See 'Quick Start Configuration' below.**
-
 This project demonstrates a generative art application running on an ESP32 with a display, using the LVGL graphics library. The device connects to Wi-Fi and acts as a WebSocket client, allowing real-time control of the visuals from a web interface or other WebSocket server. It also supports receiving and displaying small images sent as Base64-encoded JPEGs.
 
 ## Quick Start Configuration
@@ -41,27 +39,23 @@ To get the project running with your setup, you need to modify **`lvgl_sketch_we
 
 1. **Wi-Fi Network:**
 
-   - Change `WIFI_SSID` from `"Pratt Institute"` to your Wi-Fi network name.
-   - Change `WIFI_PASSWORD` from `""` to your Wi-Fi password.
+   Update the following lines with your Wi-Fi credentials:
 
    ```cpp
-   // Inside lvgl_sketch_web.ino
-   const char *WIFI_SSID = "YOUR_WIFI_SSID"; // <-- IMPORTANT: Replace with your Wi-Fi SSID
-   const char *WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";          // <-- IMPORTANT: Replace with your Wi-Fi Password
+   const char *WIFI_SSID = "YOUR_WIFI_SSID"; // Replace with your Wi-Fi SSID
+   const char *WIFI_PASSWORD = "YOUR_WIFI_PASSWORD"; // Replace with your Wi-Fi Password
    ```
 
 2. **WebSocket Server IP Address:**
 
-   - Change `WEBSOCKET_SERVER_IP` from `"10.16.48.206"` to the IP address of the computer running your WebSocket server (e.g., TouchDesigner, Node.js, Python).
-   - The `WEBSOCKET_SERVER_PORT` (default `5001`) must match the port your server is listening on.
+   Update the WebSocket server details:
 
    ```cpp
-   // Inside lvgl_sketch_web.ino
-   const char* WEBSOCKET_SERVER_IP = "YOUR_WEBSOCKET_SERVER_IP"; // <-- IMPORTANT: Replace with your server's IP address
-   const uint16_t WEBSOCKET_SERVER_PORT = 5001;
+   const char* WEBSOCKET_SERVER_IP = "YOUR_WEBSOCKET_SERVER_IP"; // Replace with your server's IP address
+   const uint16_t WEBSOCKET_SERVER_PORT = 5001; // Ensure this matches your server's port
    ```
 
-Once these are set, you can proceed with building and uploading (see Usage section).
+Once these are set, you can proceed with building and uploading the project.
 
 ## Features
 
@@ -90,29 +84,13 @@ Once these are set, you can proceed with building and uploading (see Usage secti
 - ST7701-based display (or compatible, as per your drivers)
 - Touch input optional (for future expansion)
 
-### 2. Configuration
-
-- Edit `lvgl_sketch_web.ino` to set your Wi-Fi credentials:
-
-  ```cpp
-  const char *WIFI_SSID = "YourNetwork";
-  const char *WIFI_PASSWORD = "YourPassword";
-  ```
-
-- Set your WebSocket server IP and port:
-
-  ```cpp
-  const char* WEBSOCKET_SERVER_IP = "192.168.x.x";
-  const uint16_t WEBSOCKET_SERVER_PORT = 5001;
-  ```
-
-### 3. Building and Uploading
+### 2. Building and Uploading
 
 - Open the project in Arduino IDE or PlatformIO.
 - Select the correct ESP32 board and port.
 - Build and upload as usual.
 
-### 4. WebSocket Server
+### 3. WebSocket Server
 
 - You can use the included `webui/index.html` as a web client, or run a compatible WebSocket server (e.g., TouchDesigner, Node.js, Python). An example TouchDesigner project (`td-sockets.toe`) is provided in the `touchdesigner/` folder.
 - The server should:
@@ -125,20 +103,20 @@ Once these are set, you can proceed with building and uploading (see Usage secti
     - `{ "type": "text", "value": "Hello!" }`
     - `{ "type": "image", "mime": "image/jpeg", "data": "...base64..." }`
 
-### 5. Controls
+### 4. Controls
 
 - **Slider:** Controls a visual parameter (e.g., line width, font size).
 - **Number:** Controls another parameter (e.g., arc width, position range).
 - **Text:** Displays a temporary label in the center of the screen, font size set by slider.
 - **Image:** If a small JPEG is sent as Base64, it will be decoded and displayed (see notes below).
 
-### 6. Image Support Notes
+### 5. Image Support Notes
 
 - Only small JPEGs (e.g., 16x16) are supported due to memory and performance constraints.
 - LVGL must be configured with JPEG decoder support (`LV_USE_LIBJPEG_TURBO` or `LV_USE_TJPGD` in `lv_conf.h`).
 - The Base64 decoder is custom and expects standard Base64 encoding.
 
-### 7. Extending
+### 6. Extending
 
 - You can add more message types or controls by expanding the JSON parsing in `webSocketEvent` and updating the drawing logic in `sketch.cpp`.
 - Touch input can be enabled for local interaction.
