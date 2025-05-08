@@ -13,8 +13,8 @@ const char *WIFI_SSID = "YOUR WIFI SSID"; // <-- IMPORTANT: Replace with your Wi
 const char *WIFI_PASSWORD = "YOUR WIFI PASSWORD";              // <-- IMPORTANT: Replace with your Wi-Fi Password
 
 // --- WebSocket Settings ---
-const char* WEBSOCKET_SERVER_IP = "192.168.1.176"; // <-- IMPORTANT: Replace with your server's IP address
-const uint16_t WEBSOCKET_SERVER_PORT = 5001;
+const char* WEBSOCKET_SERVER_IP = "YOUR WEBSOCKET SERVER"; // <-- IMPORTANT: Replace with your server's IP address e.g. Touchdesigner
+const uint16_t WEBSOCKET_SERVER_PORT = 5001; // <-- IMPORTANT: Replace with your server's port number if different
 WebSocketsClient webSocket;
 bool isWebSocketConnected = false; // Track connection status
 // --- End WebSocket Settings ---
