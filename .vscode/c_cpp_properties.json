@@ -63,9 +63,9 @@
         "-I/Users/liubo/Documents/Arduino/libraries/ArduinoJson/src",
         "@/Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/build_opt.h",
         "@/Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/file_opts",
-        "/Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/sketch/I2C_Driver.cpp",
+        "/Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/sketch/base64_utils.cpp",
         "-o",
-        "/Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/sketch/I2C_Driver.cpp.o"
+        "/Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/sketch/base64_utils.cpp.o"
       ],
       "defines": [
         "F_CPU=240000000L",

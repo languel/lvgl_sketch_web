@@ -1,12 +1,9 @@
 #line 1 "/Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/sketch.cpp"
-// #define LV_USE_PNG 1
-
 #include "sketch.h"
 #include <Arduino.h>
 #include <lvgl.h>
 #include "esp_heap_caps.h"
 #include "base64_utils.h"
-// #include <lv_png.h>
 
 #define CANVAS_WIDTH 480
 #define CANVAS_HEIGHT 480
@@ -40,7 +37,6 @@ static const lv_color_t palette[] = {
     lv_color_make(0, 0, 128),   // navy
     lv_color_make(0, 0, 255),   // blue
     lv_color_make(0, 191, 255), // deepskyblue
-
 };
 
 // palette = ["red","gold","pink",color(255,33,2)] //p5code
@@ -66,48 +62,50 @@ float frand(float a, float b)
 }
 
 // Example: Use slider value to control line width range in draw_r1
+static String lastTextValue = ""; // Store the last printed text value
+
 static void draw_r1()
 {
-  // Map slider (0.0 to 1.0) to a line width range (e.g., 1 to 10)
-  int min_width = 1;
-  int max_width = 10;
-  int line_width = min_width + (int)(ws_slider_value * (max_width - min_width));
-  line_width = constrain(line_width, min_width, max_width); // Ensure width is within bounds
+    // Map slider (0.0 to 1.0) to a line width range (e.g., 1 to 10)
+    int min_width = 1;
+    int max_width = 10;
+    int line_width = min_width + (int)(ws_slider_value * (max_width - min_width));
+    line_width = constrain(line_width, min_width, max_width); // Ensure width is within bounds
 
-  // Use ws_number_value to influence position maybe?
-  float center_offset_factor = ws_number_value * 0.1f; // Example: number affects how far from center lines can be
-  center_offset_factor = constrain(center_offset_factor, 0.0f, 0.5f);
+    // Use ws_number_value to influence position maybe?
+    float center_offset_factor = ws_number_value * 0.1f; // Example: number affects how far from center lines can be
+    center_offset_factor = constrain(center_offset_factor, 0.0f, 0.5f);
 
-  float x = 0.5f, y = 0.5f; // Center
-  float range_w = 0.8f * (1.0f - center_offset_factor); // Smaller range if number is higher
-  float range_h = 0.8f * (1.0f - center_offset_factor);
+    float x = 0.5f, y = 0.5f; // Center
+    float range_w = 0.8f * (1.0f - center_offset_factor); // Smaller range if number is higher
+    float range_h = 0.8f * (1.0f - center_offset_factor);
 
-  int x1 = frand(x - range_w / 2.0f, x + range_w / 2.0f) * CANVAS_WIDTH;
-  int y1 = frand(y - range_h / 2.0f, y + range_h / 2.0f) * CANVAS_HEIGHT;
-  int x2 = frand(x - range_w / 2.0f, x + range_w / 2.0f) * CANVAS_WIDTH;
-  int y2 = frand(y - range_h / 2.0f, y + range_h / 2.0f) * CANVAS_HEIGHT;
+    int x1 = frand(x - range_w / 2.0f, x + range_w / 2.0f) * CANVAS_WIDTH;
+    int y1 = frand(y - range_h / 2.0f, y + range_h / 2.0f) * CANVAS_HEIGHT;
+    int x2 = frand(x - range_w / 2.0f, x + range_w / 2.0f) * CANVAS_WIDTH;
+    int y2 = frand(y - range_h / 2.0f, y + range_h / 2.0f) * CANVAS_HEIGHT;
 
-  // Create an array of points for the line
-  lv_point_t line_points[] = { {x1, y1}, {x2, y2} };
+    // Create an array of points for the line
+    lv_point_t line_points[] = { {x1, y1}, {x2, y2} };
 
-  lv_draw_line_dsc_t line_dsc;
-  lv_draw_line_dsc_init(&line_dsc);
-  line_dsc.color = palette[random(0, palette_size)];
-  line_dsc.width = line_width; // Use the controlled width
-  line_dsc.round_start = 1;
-  line_dsc.round_end = 1;
+    lv_draw_line_dsc_t line_dsc;
+    lv_draw_line_dsc_init(&line_dsc);
+    line_dsc.color = palette[random(0, palette_size)];
+    line_dsc.width = line_width; // Use the controlled width
+    line_dsc.round_start = 1;
+    line_dsc.round_end = 1;
 
-  // Call the function with the points array and point count (2)
-  lv_canvas_draw_line(canvas, line_points, 2, &line_dsc);
+    // Call the function with the points array and point count (2)
+    lv_canvas_draw_line(canvas, line_points, 2, &line_dsc);
 
-  // Example: Print text value if it's not the default
-  if (strcmp(ws_text_value, "default") != 0) {
-      // Maybe draw the text? (Need to create a label or draw on canvas)
-      // For now, just print it less often
-      if (random(0, 50) == 0) { // Print occasionally
-          Serial.printf("[Sketch] Current text: %s\n", ws_text_value);
-      }
-  }
+    // Example: Print text value if it's not the default and has changed
+    if (strcmp(ws_text_value, "default") != 0) {
+        String currentTextValue = String(ws_text_value);
+        if (currentTextValue != lastTextValue) {
+            Serial.printf("[Sketch] Current text: %s\n", ws_text_value);
+            lastTextValue = currentTextValue; // Update the last printed value
+        }
+    }
 }
 
 // Example: Use number value to control arc width in draw_r3

@@ -366,7 +366,7 @@
  /Users/liubo/Documents/Arduino/libraries/lvgl/src/../src/extra/widgets/imgbtn/../../../lvgl.h \
  /Users/liubo/Documents/Arduino/libraries/lvgl/src/../src/extra/widgets/span/lv_span.h \
  /Users/liubo/Documents/Arduino/libraries/lvgl/src/../src/extra/widgets/span/../../../lvgl.h \
- /Users/liubo/Documents/Arduino/libraries/lvgl/src/lv_conf.h \
+ /Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/sketch/lv_conf.h \
  /Users/liubo/Documents/Arduino/libraries/lvgl/src/demos/lv_demos.h \
  /Users/liubo/Documents/Arduino/libraries/lvgl/src/demos/../lvgl.h \
  /Users/liubo/Documents/Arduino/libraries/lvgl/src/demos/widgets/lv_demo_widgets.h \

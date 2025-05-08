@@ -8,11 +8,11 @@
 #include "sketch.h"
 #include <ArduinoJson.h> // Include ArduinoJson library
 
-const char *WIFI_SSID = "Pratt Institute"; // <-- IMPORTANT: Replace with your Wi-Fi SSID
-const char *WIFI_PASSWORD = "";              // <-- IMPORTANT: Replace with your Wi-Fi Password
+const char *WIFI_SSID = "Fios-HWSQB"; // <-- IMPORTANT: Replace with your Wi-Fi SSID
+const char *WIFI_PASSWORD = "juan0583rip7142dry";              // <-- IMPORTANT: Replace with your Wi-Fi Password
 
 // --- WebSocket Settings ---
-const char* WEBSOCKET_SERVER_IP = "10.16.48.206"; // <-- IMPORTANT: Replace with your server's IP address
+const char* WEBSOCKET_SERVER_IP = "192.168.1.176"; // <-- IMPORTANT: Replace with your server's IP address
 const uint16_t WEBSOCKET_SERVER_PORT = 5001;
 WebSocketsClient webSocket;
 bool isWebSocketConnected = false; // Track connection status
@@ -58,14 +58,16 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
             Serial.printf("[WSc] Connected to url: %s\n", payload);
             isWebSocketConnected = true;
             // Optional: send message to server on connect
-            webSocket.sendTXT("{\"client\":\"ESP32\"}"); // Example: Send identification
+            // webSocket.sendTXT("{\"client\":\"ESP32\"}"); // Example: Send identification
             break;
         case WStype_TEXT:
             { // Add braces for local variable scope
-                Serial.printf("[WSc] Received text: %s\n", payload);
+                // Serial.printf("[WSc] Received text: %s\n", payload);
 
                 // Parse JSON payload
-                StaticJsonDocument<256> doc;
+                // Use DynamicJsonDocument with enough capacity for large base64 images (up to 4MB)
+                // 4MB base64 string needs about 5.4MB (base64 expands data by ~33%)
+                DynamicJsonDocument doc(6 * 1024 * 1024); // 6MB buffer
                 DeserializationError error = deserializeJson(doc, payload, length);
 
                 if (error) {
@@ -246,9 +248,9 @@ void setup()
           // Assign the event handler function
           webSocket.onEvent(webSocketEvent);
           // Set reconnect interval in ms (optional)
-          webSocket.setReconnectInterval(5000); // try every 5 seconds
-          // Start heartbeat (optional, helps keep connection alive)
-          // webSocket.enableHeartbeat(15000, 3000, 2); // Send ping every 15s, timeout 3s, max 2 retries
+          webSocket.setReconnectInterval(10000); // try every 10 seconds
+        //   Start heartbeat (optional, helps keep connection alive)
+        //   webSocket.enableHeartbeat(15000, 3000, 2); // Send ping every 15s, timeout 3s, max 2 retries
       }
   } else {
       Serial.println("[WSc] WiFi not connected, skipping WebSocket connection.");
