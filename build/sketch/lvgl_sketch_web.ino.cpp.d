@@ -565,4 +565,5 @@
  /Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/sketch/sketch.h \
  /Users/liubo/Documents/Arduino/libraries/ArduinoJson/src/ArduinoJson.h \
  /Users/liubo/Documents/Arduino/libraries/ArduinoJson/src/ArduinoJson.hpp \
- /Users/liubo/Documents/Arduino/libraries/ArduinoJson/src/ArduinoJson/Configuration.hpp
+ /Users/liubo/Documents/Arduino/libraries/ArduinoJson/src/ArduinoJson/Configuration.hpp \
+ /Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/sketch/base64_utils.h

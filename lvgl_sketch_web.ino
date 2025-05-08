@@ -7,6 +7,7 @@
 #include "LVGL_Driver.h"
 #include "sketch.h"
 #include <ArduinoJson.h> // Include ArduinoJson library
+#include "base64_utils.h"
 
 const char *WIFI_SSID = "Fios-HWSQB"; // <-- IMPORTANT: Replace with your Wi-Fi SSID
 const char *WIFI_PASSWORD = "juan0583rip7142dry";              // <-- IMPORTANT: Replace with your Wi-Fi Password
@@ -22,7 +23,15 @@ bool isWebSocketConnected = false; // Track connection status
 // --- Global Control Variables ---
 float ws_slider_value = 0.5f; // Default value
 float ws_number_value = 1.0f; // Default value
-char ws_text_value[64] = "default"; // Default value, ensure size matches sketch.h
+char ws_text_value[1024] = "default"; // Default value, ensure size matches sketch.h
+
+// Use PSRAM for large image buffer
+#include <esp_heap_caps.h>
+#define MAX_DECODED_IMG_SIZE (4 * 1024 * 1024) // 4MB, adjust as needed
+
+uint8_t* decoded_img_buffer = nullptr;
+size_t decoded_img_size = 0;
+volatile bool new_image_available = false;
 // --- End Global Control Variables ---
 
 // --- Temporary Text Label ---
@@ -88,14 +97,14 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
                              Serial.println("  [JSON] Slider message missing valid 'value'.");
                         }
                     } else if (strcmp(msg_type, "number") == 0) {
-                         if (doc["value"].is<float>() || doc["value"].is<int>()) {
+                        if (doc["value"].is<float>() || doc["value"].is<int>()) {
                             ws_number_value = doc["value"].as<float>();
                             Serial.printf("  [JSON] Parsed number value: %f\n", ws_number_value);
                         } else {
                              Serial.println("  [JSON] Number message missing valid 'value'.");
                         }
                     } else if (strcmp(msg_type, "text") == 0) {
-                         if (doc["value"].is<const char*>()) {
+                        if (doc["value"].is<const char*>()) {
                             strncpy(ws_text_value, doc["value"], sizeof(ws_text_value) - 1);
                             ws_text_value[sizeof(ws_text_value) - 1] = '\0'; // Ensure null termination
                             Serial.printf("  [JSON] Parsed text value: %s\n", ws_text_value);
@@ -160,8 +169,34 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
                     } else if (strcmp(msg_type, "connection") == 0) {
                         // Ignore the connection status message we receive now
                         Serial.println("  [JSON] Ignoring 'connection' message.");
-                    }
-                    else {
+                    } else if (strcmp(msg_type, "image") == 0) {
+                        const char* b64 = doc["data"];
+                        if (b64 && strlen(b64) > 0) {
+                            // Free previous buffer if allocated
+                            if (decoded_img_buffer) {
+                                free(decoded_img_buffer);
+                                decoded_img_buffer = nullptr;
+                            }
+                            // Allocate buffer in PSRAM
+                            decoded_img_buffer = (uint8_t*)heap_caps_malloc(MAX_DECODED_IMG_SIZE, MALLOC_CAP_SPIRAM);
+                            if (!decoded_img_buffer) {
+                                Serial.println("Failed to allocate PSRAM for image buffer!");
+                                // Handle error
+                            }
+                            decoded_img_size = base64_decode(b64, decoded_img_buffer, MAX_DECODED_IMG_SIZE);
+                            if (decoded_img_size > 0) {
+                                new_image_available = true;
+                                Serial.printf("[JSON] Decoded image: %u bytes\n", decoded_img_size);
+                            } else {
+                                Serial.println("[JSON] Image decode failed or buffer too small.");
+                                heap_caps_free(decoded_img_buffer);
+                                decoded_img_buffer = nullptr;
+                                decoded_img_size = 0;
+                            }
+                        } else {
+                            Serial.println("[JSON] Image message missing valid 'data'.");
+                        }
+                    } else {
                         Serial.printf("  [JSON] Unknown message type: %s\n", msg_type);
                     }
                 } else {

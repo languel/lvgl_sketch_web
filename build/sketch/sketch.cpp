@@ -1,4 +1,5 @@
 #line 1 "/Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/sketch.cpp"
+
 #include "sketch.h"
 #include <Arduino.h>
 #include <lvgl.h>
@@ -14,10 +15,64 @@
 extern char ip_address_str[16];
 extern float ws_slider_value;
 extern float ws_number_value;
-extern char ws_text_value[64];
+extern char ws_text_value[1024];
+
+// Drawing algorithm toggles
+static bool draw_r0_enabled = true;  // image background
+static bool draw_r1_enabled = true;
+static bool draw_r2_enabled = false;
+static bool draw_r3_enabled = true;
+static bool draw_r4_enabled = false;
 
 static lv_obj_t *canvas;
 static lv_color_t *cbuf = nullptr;
+
+
+static lv_obj_t* img_widget = nullptr;
+int decoded_img_width = 0;
+int decoded_img_height = 0;
+
+void check_image_update() {
+    // r0: image background
+    if (draw_r0_enabled && new_image_available && decoded_img_buffer != nullptr && decoded_img_size > 0) {
+        // --- Assume JPEG decoder provides width/height and RGB565 data ---
+        extern int decoded_img_width;
+        extern int decoded_img_height;
+        if (canvas && cbuf && decoded_img_width > 0 && decoded_img_height > 0) {
+            // Draw image into the canvas buffer as the background (before generative art)
+            // This will be visible underneath all generative art overlays
+            lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
+            int src_w = decoded_img_width;
+            int src_h = decoded_img_height;
+            int dst_w = CANVAS_WIDTH;
+            int dst_h = CANVAS_HEIGHT;
+            float scale = fminf((float)dst_w / src_w, (float)dst_h / src_h);
+            int draw_w = (int)(src_w * scale);
+            int draw_h = (int)(src_h * scale);
+            int x_off = (dst_w - draw_w) / 2;
+            int y_off = (dst_h - draw_h) / 2;
+            uint16_t* src = (uint16_t*)decoded_img_buffer;
+            for (int y = 0; y < draw_h; ++y) {
+                int src_y = (int)(y / scale);
+                if (src_y >= src_h) src_y = src_h - 1;
+                for (int x = 0; x < draw_w; ++x) {
+                    int src_x = (int)(x / scale);
+                    if (src_x >= src_w) src_x = src_w - 1;
+                    uint16_t pixel = src[src_y * src_w + src_x];
+                    int dst_x = x + x_off;
+                    int dst_y = y + y_off;
+                    if (dst_x >= 0 && dst_x < dst_w && dst_y >= 0 && dst_y < dst_h) {
+                        cbuf[dst_y * dst_w + dst_x].full = pixel;
+                    }
+                }
+            }
+            // Do not call lv_obj_move_foreground/canvas layering here: canvas is always on top, image is drawn into canvas background
+            lv_obj_invalidate(canvas);
+        }
+        new_image_available = false;
+    }
+}
+
 
 static const lv_color_t palette[] = {
     lv_color_make(128, 0, 0),   // maroon
@@ -67,15 +122,21 @@ static String lastTextValue = ""; // Store the last printed text value
 static void draw_r1()
 {
     // Map slider (0.0 to 1.0) to a line width range (e.g., 1 to 10)
+    // Number controls thickness (1-20)
     int min_width = 1;
-    int max_width = 10;
-    int line_width = min_width + (int)(ws_slider_value * (max_width - min_width));
+    int max_width = 20;
+    int line_width = min_width + (int)(ws_number_value * (max_width - min_width));
     line_width = constrain(line_width, min_width, max_width); // Ensure width is within bounds
 
-    // Use ws_number_value to influence position maybe?
-    float center_offset_factor = ws_number_value * 0.1f; // Example: number affects how far from center lines can be
-    center_offset_factor = constrain(center_offset_factor, 0.0f, 0.5f);
+    // Slider controls opacity (0.0-1.0 mapped to LVGL 0-255)
+    // If opacity is very low, don't draw the line at all (prevents black artifacts)
+    uint8_t min_opa = 10; // allow almost transparent
+    uint8_t max_opa = 255;
+    uint8_t line_opa = min_opa + (uint8_t)(ws_slider_value * (max_opa - min_opa));
+    if (ws_slider_value < 0.05f) return; // Don't draw if opacity is near zero
 
+    // Use number to influence position range (optional, can keep as before)
+    float center_offset_factor = 0.2f; // fixed, or could be another control
     float x = 0.5f, y = 0.5f; // Center
     float range_w = 0.8f * (1.0f - center_offset_factor); // Smaller range if number is higher
     float range_h = 0.8f * (1.0f - center_offset_factor);
@@ -94,6 +155,7 @@ static void draw_r1()
     line_dsc.width = line_width; // Use the controlled width
     line_dsc.round_start = 1;
     line_dsc.round_end = 1;
+    line_dsc.opa = line_opa;
 
     // Call the function with the points array and point count (2)
     lv_canvas_draw_line(canvas, line_points, 2, &line_dsc);
@@ -108,6 +170,43 @@ static void draw_r1()
     }
 }
 
+// Draw randomly oriented, colored triangles with opacity and size control
+void draw_r2() {
+    // Triangle size proportional to ws_number_value (1-20 mapped to pixels)
+    float min_size = 10.0f;
+    float max_size = 200.0f;
+    float tri_size = min_size + (ws_number_value - 1.0f) * (max_size - min_size) / 19.0f;
+    tri_size = fmaxf(min_size, fminf(tri_size, max_size));
+    // Don't draw if opacity is near zero
+    if (ws_slider_value < 0.05f) return;
+
+    // Center of triangle
+    float cx = frand(0.1f, 0.9f) * CANVAS_WIDTH;
+    float cy = frand(0.1f, 0.9f) * CANVAS_HEIGHT;
+
+    // Random orientation
+    float angle = frand(0, 2 * 3.1415926f);
+
+    // Vertices of equilateral triangle
+    lv_point_t pts[3];
+    for (int i = 0; i < 3; ++i) {
+        float a = angle + i * 2.0f * 3.1415926f / 3.0f;
+        pts[i].x = (int)(cx + tri_size * cosf(a));
+        pts[i].y = (int)(cy + tri_size * sinf(a));
+    }
+
+    // Color and opacity
+    lv_draw_rect_dsc_t dsc;
+    lv_draw_rect_dsc_init(&dsc);
+    dsc.bg_color = palette[random(0, palette_size)];
+    dsc.bg_opa = (lv_opa_t)(10 + ws_slider_value * (255 - 10));
+    dsc.border_opa = LV_OPA_TRANSP;
+    dsc.radius = 0;
+
+    // Draw the triangle (filled polygon)
+    lv_canvas_draw_polygon(canvas, pts, 3, &dsc);
+}
+
 // Example: Use number value to control arc width in draw_r3
 static void draw_r3()
 {
@@ -120,11 +219,17 @@ static void draw_r3()
   int cy = CANVAS_HEIGHT / 2;
   int r = random(10, CANVAS_WIDTH / 3);
 
-  // Map number value (e.g., 1 to 10) to arc width (e.g., 1 to 20)
+  // Number controls thickness (1-20)
   int min_arc_width = 1;
   int max_arc_width = 20;
-  int arc_width = min_arc_width + (int)((ws_number_value / 10.0f) * (max_arc_width - min_arc_width)); // Assuming number is roughly 0-10
+  int arc_width = min_arc_width + (int)(ws_number_value * (max_arc_width - min_arc_width));
   arc_width = constrain(arc_width, min_arc_width, max_arc_width);
+
+  // Slider controls opacity (0.0-1.0 mapped to LVGL 0-255)
+  uint8_t min_opa = 10;
+  uint8_t max_opa = 255;
+  uint8_t arc_opa = min_opa + (uint8_t)(ws_slider_value * (max_opa - min_opa));
+  if (ws_slider_value < 0.05f) return; // Don't draw if opacity is near zero
 
   // Draw fill arc (optional)
   // lv_canvas_draw_arc(canvas, cx, cy, r, 0, 360, &fill_dsc);
@@ -133,6 +238,7 @@ static void draw_r3()
   lv_draw_arc_dsc_init(&dsc);
   dsc.color = palette[random(0, palette_size)];
   dsc.width = arc_width; // Use controlled width
+  dsc.opa = arc_opa;
 
   int start_angle = random(0, 360);
   int end_angle = start_angle + random(30, 180); // Draw partial arcs
@@ -156,10 +262,10 @@ static void draw_r4()
 static void draw_frame(lv_timer_t *t)
 {
 
-  draw_r1();
-  // draw_r2();
-  draw_r3();
-  // draw_r4();
+  if (draw_r1_enabled) draw_r1();
+  if (draw_r2_enabled) draw_r2();
+  if (draw_r3_enabled) draw_r3();
+  if (draw_r4_enabled) draw_r4();
 }
 
 /////////
@@ -293,6 +399,52 @@ void sketch_setup()
 
 void sketch_loop()
 {
-  // Optional future input
-  // user interaction
+  // --- Message parsing for text commands ---
+  // Allow repeated commands (e.g. clear, r1 on, r1 off, etc.)
+  check_image_update(); // Check for new image updates
+
+  // Parse text commands for toggling draw algorithms and clear
+  if (strcmp(ws_text_value, "clear") == 0) {
+      // Clear the canvas to white
+      if (canvas && cbuf) {
+          lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
+      }
+      // Optionally clear the image widget as well
+      if (img_widget) {
+          lv_img_set_src(img_widget, NULL);
+      }
+      Serial.println("[Sketch] Received 'clear' command, screen cleared.");
+  } else if (strncmp(ws_text_value, "r0 on", 5) == 0) {
+      draw_r0_enabled = true;
+      Serial.println("[Sketch] r0 enabled");
+  } else if (strncmp(ws_text_value, "r0 off", 6) == 0) {
+      draw_r0_enabled = false;
+      Serial.println("[Sketch] r0 disabled");
+  } else if (strncmp(ws_text_value, "r1 on", 5) == 0) {
+      draw_r1_enabled = true;
+      Serial.println("[Sketch] r1 enabled");
+  } else if (strncmp(ws_text_value, "r1 off", 6) == 0) {
+      draw_r1_enabled = false;
+      Serial.println("[Sketch] r1 disabled");
+  } else if (strncmp(ws_text_value, "r2 on", 5) == 0) {
+      draw_r2_enabled = true;
+      Serial.println("[Sketch] r2 enabled");
+  } else if (strncmp(ws_text_value, "r2 off", 6) == 0) {
+      draw_r2_enabled = false;
+      Serial.println("[Sketch] r2 disabled");
+  } else if (strncmp(ws_text_value, "r3 on", 5) == 0) {
+      draw_r3_enabled = true;
+      Serial.println("[Sketch] r3 enabled");
+  } else if (strncmp(ws_text_value, "r3 off", 6) == 0) {
+      draw_r3_enabled = false;
+      Serial.println("[Sketch] r3 disabled");
+  } else if (strncmp(ws_text_value, "r4 on", 5) == 0) {
+      draw_r4_enabled = true;
+      Serial.println("[Sketch] r4 enabled");
+  } else if (strncmp(ws_text_value, "r4 off", 6) == 0) {
+      draw_r4_enabled = false;
+      Serial.println("[Sketch] r4 disabled");
+  }
 }
+
+
