@@ -28,7 +28,8 @@ Send a JSON message of type `text` with the command as the value:
 ```
 
 Or use the provided web UI to send commands directly.
-# LVGL WebSocket Generative Art Demo
+
+## LVGL WebSocket Generative Art Demo
 
 **IMPORTANT: To run this project, you MUST configure your Wi-Fi and WebSocket server details. See 'Quick Start Configuration' below.**
 
