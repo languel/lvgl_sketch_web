@@ -30,12 +30,12 @@ int decoded_img_height = 16;            // Definition and initial value for test
 // volatile bool new_image_available = true; // REMOVE THIS LINE
 
 // Drawing algorithm toggles
-static bool draw_r0_enabled = true;  // image background
-static bool draw_r1_enabled = true;
-static bool draw_r2_enabled = true;
-static bool draw_r3_enabled = true;
-static bool draw_r4_enabled = true;
-static bool draw_r5_enabled = true; // Initialize new flag
+static bool draw_r0_enabled = false;  // image background
+static bool draw_r1_enabled = false; // random lines
+static bool draw_r2_enabled = true; // arcs
+static bool draw_r3_enabled = false; //triangles
+static bool draw_r4_enabled = true; // pointillist
+static bool draw_r5_enabled = false; // dot grid
 
 static lv_obj_t *canvas;
 static lv_color_t *cbuf = nullptr;
