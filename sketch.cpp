@@ -14,13 +14,21 @@ extern char ip_address_str[16];
 extern float ws_slider_value;
 extern float ws_number_value;
 extern char ws_text_value[1024];
+extern int received_image_width;  // Definition for variable from sketch.h
+extern int received_image_height; // Definition for variable from sketch.h
+
 
 // Extern declarations for global variables defined in the .ino file
-extern uint16_t* decoded_img_buffer;
-extern int decoded_img_width;
-extern int decoded_img_height;
-extern size_t decoded_img_size; // Used in check_image_update
-extern volatile bool new_image_available; // Ensure volatile matches sketch.h
+// extern uint16_t* decoded_img_buffer; // This is defined in .ino
+// extern size_t decoded_img_size; // This is defined in .ino
+// extern volatile bool new_image_available; // This is defined in .ino
+
+// Definitions for variables declared extern in sketch.h
+// uint16_t* decoded_img_buffer = nullptr; // REMOVE THIS LINE
+int decoded_img_width = 16;             // Definition and initial value for test buffer
+int decoded_img_height = 16;            // Definition and initial value for test buffer
+// size_t decoded_img_size = 0;            // REMOVE THIS LINE
+// volatile bool new_image_available = true; // REMOVE THIS LINE
 
 // Drawing algorithm toggles
 static bool draw_r0_enabled = true;  // image background
@@ -287,13 +295,18 @@ static void draw_r5() { // New signature, no event argument
         return;
     }
 
-    const int grid_size = 16; // We want to draw a 16x16 grid of circles
-    const int circle_diameter = 30;
-    const int circle_radius = circle_diameter / 2;
-
-    // Use actual canvas dimensions for calculations
+        // Use actual canvas dimensions for calculations
     lv_coord_t canvas_width = lv_obj_get_width(canvas);
     lv_coord_t canvas_height = lv_obj_get_height(canvas);
+    // const int grid_size = 16; // We want to draw a 16x16 grid of circles
+    const int grid_size = ws_number_value; //
+    // const int circle_diameter = 30; // Circle diameter
+    //calculate circle diameter based on canvas size and grid size
+
+    const int circle_diameter = (int)(fminf(canvas_width, canvas_height) / grid_size * 0.9f); // 80% of cell size
+    const int circle_radius = circle_diameter / 2;
+
+
 
     // Calculate cell size to fit the grid onto the canvas
     float cell_width = (float)canvas_width / grid_size;

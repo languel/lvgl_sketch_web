@@ -8,24 +8,63 @@
 
     <!-- p5 from CDN -->
     <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+
+        label {
+            display: inline-block;
+            margin-top: 10px;
+            margin-bottom: 5px;
+        }
+
+        input[type="range"],
+        input[type="number"],
+        textarea {
+            margin-bottom: 10px;
+        }
+
+        textarea {
+            width: 300px;
+            height: 60px;
+            vertical-align: top;
+        }
+
+        #p5-holder {
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            width: 480px;
+            height: 480px;
+        }
+
+        /* Optional: add border for clarity */
+    </style>
 </head>
 
 <body>
-    <label for="slider">slider:</label><input id="slider" type="range" min="0" max="1" step="0.01" value="0.5"></label>
+    <div id="p5-holder"></div> <!-- canvas will land here -->
+    <label for="txCanvas">send canvas:</label>
+    <input id="txCanvas" type="checkbox" title="Enable sending canvas"> enable
 
-    <label for="number">number:</label><input id="number" type="number" step="0.1" value="1"></label>
+    <hr>
 
-    <label for="msg">Message:</label>
-    <input id="msg" type="text" size="30">
+    <label for="slider">slider:</label>
+    <input id="slider" type="range" min="0" max="1" step="0.01" value="0.5"><br>
+
+    <label for="number">number:</label>
+    <input id="number" type="number" step="0.1" value="1"><br>
+
+    <label for="msg">Message:</label><br>
+    <textarea id="msg"></textarea><br>
     <button id="sendBtn">Send</button>
 
     <hr>
-    <div id="p5-holder"></div> <!-- canvas will land here -->
 
     <p><strong>Last update from server:</strong> <span id="status">none</span></p>
 
-    <label for="txCanvas">send canvas:</label>
-    <input id="txCanvas" type="checkbox" title="Enable sending canvas"> enable
+
 
     <script>
         /* ------------------------------------------------------------------ */
@@ -34,10 +73,37 @@
         const ws = new WebSocket(`ws://${location.hostname}:5001`);
         function post(o) { if (ws.readyState === 1) ws.send(JSON.stringify(o)); }
 
-        /* UI → TD (same as before) */
+        /* UI → TD */
+        const slider = document.getElementById('slider');
+        const number = document.getElementById('number');
+        const msg = document.getElementById('msg');
+        const sendBtn = document.getElementById('sendBtn');
+        const txCanvas = document.getElementById('txCanvas');
+        const status = document.getElementById('status');
+
+
         slider.oninput = e => post({ type: 'slider', value: +e.target.value });
         number.onchange = e => post({ type: 'number', value: +e.target.value });
-        sendBtn.onclick = () => post({ type: 'text', value: msg.value });
+        sendBtn.onclick = () => {
+            post({ type: 'text', value: msg.value });
+            // Optionally clear the textarea after sending:
+            msg.value = '';
+        };
+
+        msg.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                if (!event.shiftKey) {
+                    // post({ type: 'text', value: msg.value });
+
+                    sendBtn.onclick();    // Trigger the send button's action
+                    msg.value = '';
+                    event.preventDefault(); // Prevent default Enter behavior (newline)
+
+
+                }
+                // If Shift+Enter, do nothing (allow default newline)
+            }
+        });
 
         /* ------------------------------------------------------------------ */
         /* 1.  p5                                                      */
@@ -53,9 +119,11 @@
             p.setup = () => { p.createCanvas(480, 480).parent('p5-holder'); p.background(230); };
 
             p.keyPressed = () => {
-                if (p.keyCode === 'p') { // space
+                if (p.key === ' ') { // Changed from p.keyCode === 'p' for clarity, assuming space was intended
                     p.background(230);
-                    p.image(imgref, 0, 0, 0.25 * p.width, 0.25 * p.height);
+                    if (imgref) { // Check if imgref is loaded
+                        p.image(imgref, 0, 0, 0.25 * p.width, 0.25 * p.height);
+                    }
                 }
             };
             p.draw = () => {
@@ -70,9 +138,9 @@
                     p.noStroke(); p.fill(c); p.ellipse(sx, sy, p.random(cellSize), cellSize);
                     // p.stroke(c); p.noFill(); p.ellipse(sx, sy, cellSize, cellSize);
                 }
-                if(showInput){p.image(imgref, 0, 0, 0.25 * p.width, 0.25 * p.height);}
+                if (showInput) { p.image(imgref, 0, 0, 0.25 * p.width, 0.25 * p.height); }
                 // sendCanvasIfEnabled(); 
-                if(++frameCountTx % frameThrottleSkip === 0) sendCanvasIfEnabled();  // ≈10 fps at 60 Hz
+                if (++frameCountTx % frameThrottleSkip === 0) sendCanvasIfEnabled();  // ≈10 fps at 60 Hz
             };
 
             p.handleIncoming = (b64, mime) => {
@@ -83,28 +151,40 @@
         };
 
         function sendCanvasIfEnabled() {
-            if (!txCanvas.checked) return;
+            if (!txCanvas.checked || !p5Instance || !p5Instance.canvas) return; // Added checks for p5Instance and canvas
             const mime = 'image/jpeg';
             const b64 = p5Instance.canvas.toDataURL(mime, 0.85).split(',')[1]; // strip prefix
-            post({ type: 'image', mime, data: b64 });
+            // Add width and height to the message
+            post({
+                type: 'image',
+                mime,
+                data: b64,
+                width: p5Instance.canvas.width,    // Add canvas width
+                height: p5Instance.canvas.height   // Add canvas height
+            });
         }
 
         const p5Instance = new p5(sketch, 'p5-holder');   // << store reference
 
         /// websocket
         ws.onmessage = ({ data }) => {
-            const m = JSON.parse(data);
-            status.textContent = data;
+            try { // Added try-catch for robust JSON parsing
+                const m = JSON.parse(data);
+                status.textContent = data; // Show raw data for debugging
 
-            if (m.type === 'slider') slider.value = m.value;
-            if (m.type === 'number') number.value = m.value;
-            if (m.type === 'text') msg.value = m.value;
+                if (m.type === 'slider') slider.value = m.value;
+                if (m.type === 'number') number.value = m.value;
+                if (m.type === 'text') msg.value = m.value;
 
-            if (m.type === 'image') {
-                p5Instance.handleIncoming(m.data, m.mime);    // << safe call
+                if (m.type === 'image' && p5Instance && typeof p5Instance.handleIncoming === 'function') { // Added checks
+                    p5Instance.handleIncoming(m.data, m.mime);    // << safe call
+                }
+            } catch (e) {
+                console.error("Failed to parse WebSocket message or handle data:", e);
+                status.textContent = "Error processing message: " + data;
             }
         };
-
     </script>
 </body>
+
 </html>

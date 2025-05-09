@@ -34,18 +34,16 @@ bool isWebSocketConnected = false; // Track connection status
 float ws_slider_value = 0.5f;         // Default value
 float ws_number_value = 1.0f;         // Default value
 char ws_text_value[1024] = "default"; // Default value, ensure size matches sketch.h
-int decoded_img_width = 16;
-int decoded_img_height = 16;
+int received_image_width = 0;         // To store width from WebSocket message
+int received_image_height = 0;        // To store height from WebSocket message
 
-// Use PSRAM for large image buffer
-#include <esp_heap_caps.h>
-#define MAX_DECODED_IMG_SIZE (4 * 1024 * 1024) // 4MB, adjust as needed
-
-// --- Test pixel buffer for fallback/random image ---
+// --- Image Buffer Globals ---
 uint16_t test_pixel_buffer[16 * 16];
-uint16_t *decoded_img_buffer = test_pixel_buffer; // CORRECTED: type is uint16_t*
+uint16_t *decoded_img_buffer = test_pixel_buffer; 
 size_t decoded_img_size = sizeof(test_pixel_buffer);
-volatile bool new_image_available = true; // Start with test image available
+// int decoded_img_width = 16; // MOVED TO SKETCH.CPP
+// int decoded_img_height = 16; // MOVED TO SKETCH.CPP
+volatile bool new_image_available = true; 
 // --- End Global Control Variables ---
 
 // JPEG Draw Callback function
@@ -81,15 +79,13 @@ int jpegDrawCallback(JPEGDRAW *pDraw) {
 void init_test_pixel_buffer() {
     randomSeed(analogRead(0));
     for (int i = 0; i < 16 * 16; ++i) {
-        // Generate a random RGB565 color
-        // Example: just a random 16-bit number
         test_pixel_buffer[i] = random(0, 0xFFFF);
     }
-    // decoded_img_buffer = (uint8_t*)test_pixel_buffer; // OLD, incorrect cast
-    decoded_img_buffer = test_pixel_buffer; // CORRECTED: direct assignment, types match
-    decoded_img_width = 16;
-    decoded_img_height = 16;
-    decoded_img_size = sizeof(test_pixel_buffer); // Ensure this is also set
+    decoded_img_buffer = test_pixel_buffer; 
+    // decoded_img_width = 16; // Will use the one from sketch.cpp, initialized there
+    // decoded_img_height = 16; // Will use the one from sketch.cpp, initialized there
+    // Ensure sketch.cpp initializes these to 16 for the test buffer initially
+    decoded_img_size = sizeof(test_pixel_buffer); 
     new_image_available = true;
     Serial.println("[InitTestPixelBuffer] Test pixel buffer initialized and new_image_available set to true.");
 }
@@ -192,7 +188,22 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
                     // Serial.println("[WSc] JSON 'data' field is missing for 'image' type."); // MODIFIED: Log for "data"
                 }
 
-                const char *base64_image_data = doc["data"]; // MODIFIED: Use "data" key
+                // Extract width and height if present
+                if (doc.containsKey("width") && doc["width"].is<int>()) {
+                    received_image_width = doc["width"].as<int>();
+                } else {
+                    received_image_width = 0; // Default or indicate error
+                }
+                if (doc.containsKey("height") && doc["height"].is<int>()) {
+                    received_image_height = doc["height"].as<int>();
+                } else {
+                    received_image_height = 0; // Default or indicate error
+                }
+                // Optional: Log received dimensions
+                // Serial.printf("[WSc] Received image dimensions: %d x %d\n", received_image_width, received_image_height);
+
+
+                const char *base64_image_data = doc["data"]; 
                 if (base64_image_data) {
                     // Serial.println("[WSc] Received image data (base64_image_data is not null). Decoding...");
                     size_t b64_decoded_len;
