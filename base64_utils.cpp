@@ -1,4 +1,7 @@
 #include "base64_utils.h"
+#include <Arduino.h> // For ps_malloc, ps_free
+#include <string.h>  // For strlen
+#include <esp_heap_caps.h> // Added for heap_caps_malloc and heap_caps_free
 
 static const int8_t b64_table[256] = {
     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, // 0-15
@@ -36,4 +39,46 @@ int base64_decode(const char* input, uint8_t* output, size_t output_len) {
         }
     }
     return out_idx;
+}
+
+// Decodes a base64 string into a newly allocated PSRAM buffer.
+// Returns a pointer to the buffer, or nullptr on error.
+// The caller is responsible for freeing the returned buffer using heap_caps_free().
+// The out_decoded_len will be set to the length of the decoded data.
+uint8_t* base64_decode_to_psram(const char* input, size_t* out_decoded_len) {
+    if (!input || !out_decoded_len) {
+        if (out_decoded_len) *out_decoded_len = 0;
+        return nullptr;
+    }
+
+    size_t input_len = strlen(input);
+    if (input_len == 0) {
+        *out_decoded_len = 0;
+        return nullptr;
+    }
+
+    // Calculate maximum possible decoded length.
+    // Each 4 base64 chars correspond to 3 bytes. Padding chars adjust this.
+    // A robust formula for max output size: (input_len * 3 + 3) / 4
+    size_t max_decoded_buffer_size = (input_len * 3 + 3) / 4;
+    if (max_decoded_buffer_size == 0 && input_len > 0) { // Should not happen if input_len > 0
+        max_decoded_buffer_size = 1; // Minimal allocation for safety, though logic implies >0
+    }
+
+    uint8_t* decoded_buffer = (uint8_t*)heap_caps_malloc(max_decoded_buffer_size, MALLOC_CAP_SPIRAM); // Changed to heap_caps_malloc
+    if (!decoded_buffer) {
+        *out_decoded_len = 0;
+        return nullptr; 
+    }
+
+    int bytes_decoded = base64_decode(input, decoded_buffer, max_decoded_buffer_size);
+
+    if (bytes_decoded < 0) {
+        heap_caps_free(decoded_buffer); // Changed to heap_caps_free
+        *out_decoded_len = 0;
+        return nullptr; 
+    }
+
+    *out_decoded_len = (size_t)bytes_decoded;
+    return decoded_buffer;
 }

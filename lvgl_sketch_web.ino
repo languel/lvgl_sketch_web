@@ -10,6 +10,13 @@
 #include "base64_utils.h"
 #include <JPEGDEC.h> // Include JPEG decoder library
 
+// --- WebSocket and JPEG Decoding Globals ---
+static JPEGDEC jpeg; // JPEG decoder instance
+static uint16_t* g_jpeg_target_buffer = nullptr; // Target buffer for JPEG callback
+static int g_jpeg_target_width = 0; // Target width for JPEG callback
+static bool decoded_buffer_is_dynamic = false; // Tracks if decoded_img_buffer is on heap
+// --- End WebSocket and JPEG Globals ---
+
 // --- Connection Settings ---
 // const char *WIFI_SSID = "YOUR WIFI SSID"; // <-- IMPORTANT: Replace with your Wi-Fi SSID
 // const char *WIFI_PASSWORD = "YOUR WIFI PASSWORD";              // <-- IMPORTANT: Replace with your Wi-Fi Password
@@ -38,8 +45,37 @@ int decoded_img_height = 16;
 uint16_t test_pixel_buffer[16 * 16];
 uint16_t *decoded_img_buffer = test_pixel_buffer; // CORRECTED: type is uint16_t*
 size_t decoded_img_size = sizeof(test_pixel_buffer);
-volatile bool new_image_available = true;
+volatile bool new_image_available = true; // Start with test image available
 // --- End Global Control Variables ---
+
+// JPEG Draw Callback function
+// This function is called by the JPEGDEC library to draw pixels.
+// We use it to copy pixel data into our global decoded_img_buffer.
+int jpegDrawCallback(JPEGDRAW *pDraw) {
+    if (!g_jpeg_target_buffer || g_jpeg_target_width == 0) {
+        Serial.println("[jpegDrawCallback] Error: Target buffer or width not set!");
+        return 0; // Stop decoding if setup is incorrect
+    }
+
+    uint16_t *src_pixels = pDraw->pPixels; // Pixels from the current MCU
+
+    for (int y = 0; y < pDraw->iHeight; y++) {
+        for (int x = 0; x < pDraw->iWidth; x++) {
+            int dest_x = pDraw->x + x;
+            int dest_y = pDraw->y + y;
+
+            // Ensure we are within the bounds of our target buffer
+            // decoded_img_height is a global variable updated before decode starts
+            if (dest_x < g_jpeg_target_width && dest_y < decoded_img_height) {
+                g_jpeg_target_buffer[dest_y * g_jpeg_target_width + dest_x] = src_pixels[y * pDraw->iWidth + x];
+            } else {
+                // This might happen if JPEG dimensions are slightly off or MCU overlaps boundary
+                // Serial.printf("[jpegDrawCallback] Warning: Pixel out of bounds (%d, %d)\n", dest_x, dest_y);
+            }
+        }
+    }
+    return 1; // Return 1 to continue decoding
+}
 
 // Helper to initialize the test pixel buffer with random colors
 void init_test_pixel_buffer() {
@@ -96,24 +132,17 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
     case WStype_CONNECTED:
         Serial.printf("[WSc] Connected to url: %s\n", payload);
         isWebSocketConnected = true;
-        // Optional: send message to server on connect
-        // webSocket.sendTXT("{\"client\":\"ESP32\"}"); // Example: Send identification
         break;
     case WStype_TEXT:
-    { // Add braces for local variable scope
-        // Serial.printf("[WSc] Received text: %s\n", payload);
-
-        // Parse JSON payload
-        // Use DynamicJsonDocument with enough capacity for large base64 images (up to 4MB)
-        // 4MB base64 string needs about 5.4MB (base64 expands data by ~33%)
-        DynamicJsonDocument doc(6 * 1024 * 1024); // 6MB buffer
+    { 
+        DynamicJsonDocument doc(6 * 1024 * 1024); // Increased capacity for potentially large base64
         DeserializationError error = deserializeJson(doc, payload, length);
 
         if (error)
         {
-            Serial.print(F("[JSON] deserializeJson() failed: "));
+            Serial.print(F("[WSc] deserializeJson() failed: "));
             Serial.println(error.f_str());
-            return; // Exit if parsing fails
+            return;
         }
 
         const char *msg_type = doc["type"];
@@ -122,128 +151,131 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
         {
             if (strcmp(msg_type, "slider") == 0)
             {
-                // Check if "value" exists and is a number
-                if (doc["value"].is<float>() || doc["value"].is<int>())
-                {
-                    ws_slider_value = doc["value"].as<float>();
-                    Serial.printf("  [JSON] Parsed slider value: %f\n", ws_slider_value);
-                }
-                else
-                {
-                    Serial.println("  [JSON] Slider message missing valid 'value'.");
-                }
+                ws_slider_value = doc["value"].as<float>();
+                // Serial.printf("[WSc] Slider value: %f\n", ws_slider_value);
             }
             else if (strcmp(msg_type, "number") == 0)
             {
-                if (doc["value"].is<float>() || doc["value"].is<int>())
-                {
-                    ws_number_value = doc["value"].as<float>();
-                    Serial.printf("  [JSON] Parsed number value: %f\n", ws_number_value);
-                }
-                else
-                {
-                    Serial.println("  [JSON] Number message missing valid 'value'.");
-                }
+                ws_number_value = doc["value"].as<float>();
+                // Serial.printf("[WSc] Number value: %f\n", ws_number_value);
             }
             else if (strcmp(msg_type, "text") == 0)
             {
-                if (doc["value"].is<const char *>())
-                {
-                    strncpy(ws_text_value, doc["value"], sizeof(ws_text_value) - 1);
+                const char *txt = doc["value"];
+                if (txt) {
+                    strncpy(ws_text_value, txt, sizeof(ws_text_value) - 1);
                     ws_text_value[sizeof(ws_text_value) - 1] = '\0'; // Ensure null termination
-                    Serial.printf("  [JSON] Parsed text value: %s\n", ws_text_value);
-
-                    // --- Display the received text temporarily ---
-                    // 1. Delete previous label and its timer if they exist
-                    if (text_delete_timer)
-                    {
-                        lv_timer_del(text_delete_timer); // Delete the timer first
-                        text_delete_timer = nullptr;
-                    }
-                    if (current_text_label)
-                    {
-                        lv_obj_del(current_text_label); // Delete the label object
-                        current_text_label = nullptr;
-                    }
-
-                    // 2. Determine font based on slider value
-                    const lv_font_t *selected_font = &lv_font_montserrat_14; // Default (Available)
-                    if (ws_slider_value >= 0.75f)
-                    {
-                        // Use largest available suggested font
-                        selected_font = &lv_font_montserrat_16; // Use 16 instead of 32
-                    }
-                    else if (ws_slider_value >= 0.5f)
-                    {
-                        // Use medium available suggested font
-                        selected_font = &lv_font_montserrat_14; // Use 14 instead of 24 (already default, but explicit)
-                    }
-                    else if (ws_slider_value >= 0.25f)
-                    {
-                        // Use smallest available suggested font (other than default)
-                        selected_font = &lv_font_montserrat_12; // Use 12 instead of 18
-                    }
-                    // Ensure selected_font points to a valid font enabled in lv_conf.h
-
-                    // 3. Create the new label
-                    lv_obj_t *new_label = lv_label_create(lv_scr_act());
-                    if (new_label)
-                    {
-                        current_text_label = new_label; // Store pointer to the new label
-                        lv_label_set_text(new_label, ws_text_value);
-                        lv_obj_set_style_text_font(new_label, selected_font, 0); // Set font size
-                        lv_obj_set_style_text_align(new_label, LV_TEXT_ALIGN_CENTER, 0);
-                        lv_obj_set_style_bg_color(new_label, lv_color_black(), 0);
-                        lv_obj_set_style_bg_opa(new_label, LV_OPA_70, 0);
-                        lv_obj_set_style_text_color(new_label, lv_color_white(), 0);
-                        lv_obj_set_style_pad_all(new_label, 8, 0); // More padding for larger fonts
-                        lv_obj_align(new_label, LV_ALIGN_CENTER, 0, 0);
-                        lv_obj_move_foreground(new_label); // Draw on top
-
-                        // 4. Create deletion timer
-                        text_delete_timer = lv_timer_create(text_label_delete_timer_cb, 5000, new_label); // 5 seconds
-                        if (text_delete_timer)
-                        {
-                            lv_timer_set_repeat_count(text_delete_timer, 1); // One-shot
-                        }
-                        else
-                        {
-                            Serial.println("   ERROR: Failed to create text deletion timer!");
-                            // Clean up label if timer fails?
-                            lv_obj_del(new_label);
-                            current_text_label = nullptr;
-                        }
-                    }
-                    else
-                    {
-                        Serial.println("   ERROR: Failed to create temporary text label!");
-                    }
-                    // --- End temporary text display ---
+                    // Serial.printf("[WSc] Text value: %s\n", ws_text_value);
+                    // display_temporary_text(ws_text_value); // Assuming this function exists and is defined elsewhere
                 }
-                else
-                {
-                    Serial.println("  [JSON] Text message missing valid 'value'.");
-                }
-            }
-            else if (strcmp(msg_type, "connection") == 0)
-            {
-                // Ignore the connection status message we receive now
-                Serial.println("  [JSON] Ignoring 'connection' message.");
             }
             else if (strcmp(msg_type, "image") == 0)
             {
-                Serial.println("[JSON] Image message received, but JPEG handling is currently disabled.");
+                Serial.println("[WSc] 'image' message type identified."); // Confirm this block is reached
+                // Print the raw payload for debugging
+                Serial.printf("[WSc] Raw payload for 'image' (length %zu): %.*s\n", length, (int)length, (char*)payload);
+
+                if (doc.containsKey("value")) {
+                    JsonVariant image_val = doc["value"];
+                    if (image_val.isNull()) {
+                        Serial.println("[WSc] JSON 'value' field is null.");
+                    } else if (image_val.is<const char*>()) {
+                        const char* b64_data = image_val.as<const char*>();
+                        Serial.printf("[WSc] JSON 'value' field (string) starts with: %.*s...\n", 30, b64_data ? b64_data : "NULL_PTR");
+                        if (b64_data) {
+                            Serial.printf("[WSc] JSON 'value' field string length: %d\n", strlen(b64_data));
+                        }
+                    } else {
+                        Serial.printf("[WSc] JSON 'value' field is not a string. Actual type: %s\n", image_val.is<int>() ? "int" : image_val.is<float>() ? "float" : image_val.is<bool>() ? "bool" : image_val.is<JsonArray>() ? "array" : image_val.is<JsonObject>() ? "object" : "unknown");
+                    }
+                } else {
+                    Serial.println("[WSc] JSON 'value' field is missing for 'image' type.");
+                }
+
+                const char *base64_image_data = doc["value"];
+                if (base64_image_data) {
+                    Serial.println("[WSc] Received image data (base64_image_data is not null). Decoding...");
+                    size_t b64_decoded_len;
+                    uint8_t *jpeg_raw_data = base64_decode_to_psram(base64_image_data, &b64_decoded_len);
+
+                    if (jpeg_raw_data && b64_decoded_len > 0) {
+                        Serial.printf("[JPEG] Base64 decoded to %d bytes in PSRAM.\n", b64_decoded_len);
+
+                        if (jpeg.openRAM(jpeg_raw_data, b64_decoded_len, jpegDrawCallback)) {
+                            Serial.println("[JPEG] RAM buffer opened.");
+                            jpeg.setPixelType(RGB565_LITTLE_ENDIAN); // Critical for LVGL compatibility
+
+                            int new_img_width = jpeg.getWidth();
+                            int new_img_height = jpeg.getHeight();
+                            Serial.printf("[JPEG] Dimensions: %d x %d\n", new_img_width, new_img_height);
+
+                            if (new_img_width > 0 && new_img_height > 0) {
+                                size_t new_buffer_byte_size = (size_t)new_img_width * new_img_height * sizeof(uint16_t);
+                                uint16_t* temp_new_pixel_buffer = (uint16_t*)heap_caps_malloc(new_buffer_byte_size, MALLOC_CAP_SPIRAM);
+
+                                if (temp_new_pixel_buffer) {
+                                    Serial.printf("[JPEG] Allocated %zu bytes for new pixel buffer in PSRAM.\n", new_buffer_byte_size);
+
+                                    if (decoded_buffer_is_dynamic && decoded_img_buffer != nullptr && decoded_img_buffer != test_pixel_buffer) {
+                                        Serial.println("[JPEG] Freeing previous dynamic image buffer.");
+                                        heap_caps_free(decoded_img_buffer);
+                                    }
+
+                                    decoded_img_buffer = temp_new_pixel_buffer;
+                                    decoded_img_width = new_img_width;
+                                    decoded_img_height = new_img_height; // Set before decode for callback
+                                    decoded_img_size = new_buffer_byte_size;
+                                    decoded_buffer_is_dynamic = true;
+
+                                    g_jpeg_target_buffer = decoded_img_buffer;
+                                    g_jpeg_target_width = decoded_img_width;
+
+                                    Serial.println("[JPEG] Starting decode process...");
+                                    if (jpeg.decode(0, 0, 0)) {
+                                        Serial.println("[JPEG] Decode successful.");
+                                        new_image_available = true;
+                                    } else {
+                                        Serial.println("[JPEG] Decode FAILED!");
+                                        heap_caps_free(decoded_img_buffer); // Free the just-allocated buffer
+                                        // Revert to test buffer
+                                        decoded_img_buffer = test_pixel_buffer;
+                                        decoded_img_width = 16;
+                                        decoded_img_height = 16;
+                                        decoded_img_size = sizeof(test_pixel_buffer);
+                                        decoded_buffer_is_dynamic = false;
+                                        new_image_available = true; // Show test image
+                                    }
+                                } else {
+                                    Serial.println("[JPEG] Failed to allocate PSRAM for new pixel buffer!");
+                                }
+                            } else {
+                                Serial.println("[JPEG] Header invalid or image dimensions are zero.");
+                            }
+                            jpeg.close();
+                            Serial.println("[JPEG] Closed.");
+                        } else {
+                            Serial.println("[JPEG] jpeg.openRAM() failed!");
+                        }
+                        heap_caps_free(jpeg_raw_data); // Free the base64 decoded data
+                        Serial.println("[JPEG] Freed base64 decoded data buffer.");
+                    } else {
+                        Serial.println("[JPEG] Base64 decoding failed or produced zero length data.");
+                        if (jpeg_raw_data) heap_caps_free(jpeg_raw_data); // Safety free
+                    }
+                    // Clear global helpers
+                    g_jpeg_target_buffer = nullptr;
+                    g_jpeg_target_width = 0;
+                } else {
+                    Serial.println("[WSc] Debug: base64_image_data (from doc's value field) is null.");
+                }
             }
-            else
-            {
-                Serial.printf("  [JSON] Unknown message type: %s\n", msg_type);
-            }
+            // ... any other message types ...
         }
         else
         {
-            Serial.println("  [JSON] Received JSON without 'type' field.");
+            Serial.println("[WSc] Received JSON without 'type' field.");
         }
-    } // End of local scope for JSON parsing
+    } 
     break;
     case WStype_BIN:
         Serial.printf("[WSc] Received binary data of length: %u\n", length);
