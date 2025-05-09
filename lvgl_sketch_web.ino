@@ -18,12 +18,10 @@ static bool decoded_buffer_is_dynamic = false; // Tracks if decoded_img_buffer i
 // --- End WebSocket and JPEG Globals ---
 
 // --- Connection Settings ---
-// const char *WIFI_SSID = "YOUR WIFI SSID"; // <-- IMPORTANT: Replace with your Wi-Fi SSID
-// const char *WIFI_PASSWORD = "YOUR WIFI PASSWORD";              // <-- IMPORTANT: Replace with your Wi-Fi Password
-// const char* WEBSOCKET_SERVER_IP = "YOUR WEBSOCKET SERVER"; // <-- IMPORTANT: Replace with your server's IP address e.g. Touchdesigner
-const char *WIFI_SSID = "Fios-HWSQB";              // <-- IMPORTANT: Replace with your Wi-Fi SSID
-const char *WIFI_PASSWORD = "juan0583rip7142dry";  // <-- IMPORTANT: Replace with your Wi-Fi Password
-const char *WEBSOCKET_SERVER_IP = "192.168.1.176"; // <-- IMPORTANT: Replace with your server's IP address e.g. Touchdesigner
+const char *WIFI_SSID = "YOUR WIFI SSID"; // <-- IMPORTANT: Replace with your Wi-Fi SSID
+const char *WIFI_PASSWORD = "YOUR WIFI PASSWORD";              // <-- IMPORTANT: Replace with your Wi-Fi Password
+const char* WEBSOCKET_SERVER_IP = "YOUR WEBSOCKET SERVER"; // <-- IMPORTANT: Replace with your server's IP address e.g. Touchdesigner
+
 const uint16_t WEBSOCKET_SERVER_PORT = 5001;       // <-- IMPORTANT: Replace with your server's port number if different
 WebSocketsClient webSocket;
 bool isWebSocketConnected = false; // Track connection status
