@@ -127,20 +127,59 @@
                 }
             };
             p.draw = () => {
-                if (!imgref) return;
-                // p.image(imgref, 0, 0, 1 * p.width, 1 * p.height); //ref image
-                for (let i = 0; i < repaintPerFrame; i++) {
-                    const x = p.random(imgref.width), y = p.random(imgref.height);
-                    let c = imgref.get(x, y);
-                    const sx = p.map(x, 0, imgref.width, 0, p.width), sy = p.map(y, 0, imgref.height, 0, p.height);
-                    c = p.color(p.red(c) + p.random(-20, 20), p.green(c) + p.random(-20, 20), p.blue(c), 255);
+                if (imgref) { // Only draw if imgref is available
+                    // Get UI values
+                    const numCircles = parseInt(number.value, 10);
+                    const sliderVal = parseFloat(slider.value);
 
-                    p.noStroke(); p.fill(c); p.ellipse(sx, sy, p.random(cellSize), cellSize);
-                    // p.stroke(c); p.noFill(); p.ellipse(sx, sy, cellSize, cellSize);
+                    // Calculate opacity based on slider (0.0 -> 0, 1.0 -> 255)
+                    const alpha = p.map(sliderVal, 0, 1, 0, 255);
+
+                    // Calculate base size for circles
+                    // Assumes imgref.width maps to p.width for the "cell" dimension.
+                    // This is safe because imgref is checked.
+                    const baseCellDimension = p.width / imgref.width;
+                    const circleDiameter = sliderVal * baseCellDimension;
+
+                    p.noStroke(); // Set once for all circles in this frame
+
+                    // Drawing loop
+                    for (let i = 0; i < numCircles; i++) {
+                        // Choose a random position on the p5.js canvas
+                        const canvas_x = p.random(p.width);
+                        const canvas_y = p.random(p.height);
+
+                        // Map this canvas position to a corresponding pixel in imgref
+                        let source_img_c = p.map(canvas_x, 0, p.width, 0, imgref.width);
+                        let source_img_r = p.map(canvas_y, 0, p.height, 0, imgref.height);
+
+                        // Convert to integer coordinates for imgref.get()
+                        // p.floor(p.map([0,max_src),[0,max_target))) results in [0, max_target-1], which is in bounds.
+                        source_img_c = p.floor(source_img_c);
+                        source_img_r = p.floor(source_img_r);
+
+                        // Sample the color from imgref
+                        const sourceColor = imgref.get(source_img_c, source_img_r);
+
+                        // Set fill with the sampled color and calculated opacity
+                        p.fill(p.red(sourceColor), p.green(sourceColor), p.blue(sourceColor), alpha);
+
+                        // Draw the circle
+                        p.ellipse(canvas_x, canvas_y, circleDiameter, circleDiameter);
+                    }
+
+                    // The showInput variable is part of the original sketch, kept for consistency.
+                    // It's initialized to false and not changed elsewhere.
+                    if (showInput) {
+                        p.image(imgref, 0, 0, 0.25 * p.width, 0.25 * p.height);
+                    }
                 }
-                if (showInput) { p.image(imgref, 0, 0, 0.25 * p.width, 0.25 * p.height); }
-                // sendCanvasIfEnabled(); 
-                if (++frameCountTx % frameThrottleSkip === 0) sendCanvasIfEnabled();  // ≈10 fps at 60 Hz
+
+                // Increment frame counter and send canvas if enabled, regardless of imgref status
+                // This ensures canvas is sent even if imgref is not ready (sending the blank/previous state).
+                if (++frameCountTx % frameThrottleSkip === 0) {
+                    sendCanvasIfEnabled();
+                }
             };
 
             p.handleIncoming = (b64, mime) => {

@@ -187,6 +187,10 @@ void check_image_update() {
     }
 }
 
+// r1: Draws random lines on the canvas.
+// Line thickness is controlled by `ws_number_value`.
+// Line opacity is controlled by `ws_slider_value`.
+// Controlled by `draw_r1_enabled` flag, toggled by "r1 on" / "r1 off" commands.
 static void draw_r1()
 {
     // process_text_commands(); // Moved to draw_frame or a dedicated command processing tick
@@ -194,13 +198,14 @@ static void draw_r1()
     // Map slider (0.0 to 1.0) to a line width range (e.g., 1 to 10)
     // Number controls thickness (1-20)
     int min_width = 1;
-    int max_width = 20;
-    int line_width = min_width + (int)(ws_number_value * (max_width - min_width));
+    int max_width = CANVAS_WIDTH / 4; // Max width is 1/10 of canvas width
+    // int line_width = min_width + (int)(ws_number_value * (max_width - min_width));
+    int line_width = ws_number_value; // Directly use ws_number_value for line width
     line_width = constrain(line_width, min_width, max_width); // Ensure width is within bounds
 
     // Slider controls opacity (0.0-1.0 mapped to LVGL 0-255)
     // If opacity is very low, don't draw the line at all (prevents black artifacts)
-    uint8_t min_opa = 10; // allow almost transparent
+    uint8_t min_opa = 1; // allow almost transparent
     uint8_t max_opa = 255;
     uint8_t line_opa = min_opa + (uint8_t)(ws_slider_value * (max_opa - min_opa));
     if (ws_slider_value < 0.05f) return; // Don't draw if opacity is near zero
@@ -208,8 +213,8 @@ static void draw_r1()
     // Use number to influence position range (optional, can keep as before)
     float center_offset_factor = 0.2f; // fixed, or could be another control
     float x = 0.5f, y = 0.5f; // Center
-    float range_w = 0.8f * (1.0f - center_offset_factor); // Smaller range if number is higher
-    float range_h = 0.8f * (1.0f - center_offset_factor);
+    float range_w = 0.99f * (1.0f - center_offset_factor); // Smaller range if number is higher
+    float range_h = 0.899 * (1.0f - center_offset_factor);
 
     int x1 = frand(x - range_w / 2.0f, x + range_w / 2.0f) * CANVAS_WIDTH;
     int y1 = frand(y - range_h / 2.0f, y + range_h / 2.0f) * CANVAS_HEIGHT;
@@ -230,19 +235,56 @@ static void draw_r1()
     // Call the function with the points array and point count (2)
     lv_canvas_draw_line(canvas, line_points, 2, &line_dsc);
 
-    // Example: Print text value if it's not the default and has changed
-    // This specific text logging is now handled in process_text_commands
-    // if (strcmp(ws_text_value, "default") != 0) {
-    //     String currentTextValue = String(ws_text_value);
-    //     if (currentTextValue != lastTextValue) {
-    //         Serial.printf("[Sketch] Current text: %s\\n", ws_text_value);
-    //         lastTextValue = currentTextValue; // Update the last printed value
-    //     }
-    // }
 }
 
-// Draw randomly oriented, colored triangles with opacity and size control
-void draw_r2() {
+// r2: Draws random arcs on the canvas. (Note: previously triangles, function name was draw_r3, now correctly draw_r2)
+// Arc width (thickness) is controlled by `ws_number_value`.
+// Arc opacity is controlled by `ws_slider_value`.
+// Controlled by `draw_r2_enabled` flag, toggled by "r2 on" / "r2 off" commands.
+static void draw_r2()
+{
+  lv_draw_rect_dsc_t fill_dsc;
+  lv_draw_rect_dsc_init(&fill_dsc);
+  fill_dsc.bg_color = palette[random(0, palette_size)];
+  fill_dsc.radius = LV_RADIUS_CIRCLE;
+
+  int cx = CANVAS_WIDTH / 2;
+  int cy = CANVAS_HEIGHT / 2;
+  int r = random(10, CANVAS_WIDTH / 3);
+
+  // Number controls thickness (1-20)
+  int min_arc_width = 1;
+  int max_arc_width = CANVAS_WIDTH / 5; // Max width is 1/10 of canvas width
+//   int arc_width = min_arc_width + (int)(ws_number_value * (max_arc_width - min_arc_width));
+    int arc_width = ws_number_value; // Directly use ws_number_value for arc width
+  arc_width = constrain(arc_width, min_arc_width, max_arc_width);
+
+  // Slider controls opacity (0.0-1.0 mapped to LVGL 0-255)
+  uint8_t min_opa = 10;
+  uint8_t max_opa = 255;
+  uint8_t arc_opa = min_opa + (uint8_t)(ws_slider_value * (max_opa - min_opa));
+  if (ws_slider_value < 0.05f) return; // Don't draw if opacity is near zero
+
+  // Draw fill arc (optional)
+  // lv_canvas_draw_arc(canvas, cx, cy, r, 0, 360, &fill_dsc);
+
+  lv_draw_arc_dsc_t dsc;
+  lv_draw_arc_dsc_init(&dsc);
+  dsc.color = palette[random(0, palette_size)];
+  dsc.width = arc_width; // Use controlled width
+  dsc.opa = arc_opa;
+
+  int start_angle = random(0, 360);
+  int end_angle = start_angle + random(30, 180); // Draw partial arcs
+
+  lv_canvas_draw_arc(canvas, cx, cy, r, start_angle, end_angle, &dsc);
+}
+
+// r3: Draws random filled triangles on the canvas. (Note: previously arcs, function name was draw_r2, now correctly draw_r3)
+// Triangle size is controlled by `ws_number_value`.
+// Triangle opacity is controlled by `ws_slider_value`.
+// Controlled by `draw_r3_enabled` flag, toggled by "r3 on" / "r3 off" commands.
+void draw_r3() {
     // Triangle size proportional to ws_number_value (1-20 mapped to pixels)
     float min_size = 10.0f;
     float max_size = 200.0f;
@@ -278,45 +320,12 @@ void draw_r2() {
     lv_canvas_draw_polygon(canvas, pts, 3, &dsc);
 }
 
-// Example: Use number value to control arc width in draw_r3
-static void draw_r3()
-{
-  lv_draw_rect_dsc_t fill_dsc;
-  lv_draw_rect_dsc_init(&fill_dsc);
-  fill_dsc.bg_color = palette[random(0, palette_size)];
-  fill_dsc.radius = LV_RADIUS_CIRCLE;
-
-  int cx = CANVAS_WIDTH / 2;
-  int cy = CANVAS_HEIGHT / 2;
-  int r = random(10, CANVAS_WIDTH / 3);
-
-  // Number controls thickness (1-20)
-  int min_arc_width = 1;
-  int max_arc_width = 20;
-  int arc_width = min_arc_width + (int)(ws_number_value * (max_arc_width - min_arc_width));
-  arc_width = constrain(arc_width, min_arc_width, max_arc_width);
-
-  // Slider controls opacity (0.0-1.0 mapped to LVGL 0-255)
-  uint8_t min_opa = 10;
-  uint8_t max_opa = 255;
-  uint8_t arc_opa = min_opa + (uint8_t)(ws_slider_value * (max_opa - min_opa));
-  if (ws_slider_value < 0.05f) return; // Don't draw if opacity is near zero
-
-  // Draw fill arc (optional)
-  // lv_canvas_draw_arc(canvas, cx, cy, r, 0, 360, &fill_dsc);
-
-  lv_draw_arc_dsc_t dsc;
-  lv_draw_arc_dsc_init(&dsc);
-  dsc.color = palette[random(0, palette_size)];
-  dsc.width = arc_width; // Use controlled width
-  dsc.opa = arc_opa;
-
-  int start_angle = random(0, 360);
-  int end_angle = start_angle + random(30, 180); // Draw partial arcs
-
-  lv_canvas_draw_arc(canvas, cx, cy, r, start_angle, end_angle, &dsc);
-}
-
+// r4: Draws multiple small circles at random positions.
+// The color of each circle is sampled from the corresponding cell of the decoded image if available,
+// otherwise, a random color from the palette is used.
+// The number of circles drawn per frame is controlled by `ws_number_value`.
+// The size (diameter) of the circles is scaled by `ws_slider_value` relative to the calculated cell size (derived from image dimensions).
+// Controlled by `draw_r4_enabled` flag, toggled by "r4 on" / "r4 off" commands.
 static void draw_r4()
 {
     if (!canvas) return;
@@ -354,20 +363,24 @@ static void draw_r4()
         float scale = constrain(ws_number_value, 0.1f, 1.5f);
         float dia_f = fminf(cell_w, cell_h) * scale;
         int dia = dia_f >= 1.0f ? (int)dia_f : 1;
-        int radius = dia / 2;
+        int radius = ws_slider_value * dia / 2;
 
         // Draw filled circle at (x,y)
         lv_draw_rect_dsc_t dsc;
         lv_draw_rect_dsc_init(&dsc);
         dsc.radius = LV_RADIUS_CIRCLE;
-        dsc.bg_opa = LV_OPA_COVER;
+        // dsc.bg_opa = LV_OPA_COVER;
+        dsc.bg_opa = (lv_opa_t)(ws_slider_value * 255);
         dsc.bg_color = pixel_color;
         lv_canvas_draw_rect(canvas, x - radius, y - radius, dia, dia, &dsc);
     }
 }
 
-// Corrected draw_r5 function to draw a 16x16 grid of circles
-// static void draw_r5(lv_event_t *e) { // Old signature
+// r5: Pointillist effect. Draws a grid of circles representing the pixels of the decoded image.
+// The grid dimensions match the `decoded_img_width` and `decoded_img_height`.
+// The color of each circle is taken directly from the corresponding pixel in `decoded_img_buffer`.
+// The relative size of the circles within their grid cells is controlled by `ws_number_value`.
+// Controlled by `draw_r5_enabled` flag, toggled by "r5 on" / "r5 off" commands.
 static void draw_r5() { // New signature, no event argument
     // lv_obj_t *canvas = lv_event_get_target(e); // No longer get canvas from event
     // lv_draw_ctx_t *draw_ctx = lv_event_get_draw_ctx(e); // No longer get draw_ctx from event

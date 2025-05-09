@@ -65,9 +65,9 @@
         "-I/Users/liubo/Documents/Arduino/libraries/JPEGDEC/src",
         "@/Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/build_opt.h",
         "@/Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/file_opts",
-        "/Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/sketch/lvgl_sketch_web.ino.cpp",
+        "/Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/sketch/sketch.cpp",
         "-o",
-        "/Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/sketch/lvgl_sketch_web.ino.cpp.o"
+        "/Users/liubo/Documents/Arduino/examples/lvgl_sketch_web/build/sketch/sketch.cpp.o"
       ],
       "defines": [
         "F_CPU=240000000L",
