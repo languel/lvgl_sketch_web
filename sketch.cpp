@@ -1,4 +1,3 @@
-
 #include "sketch.h"
 #include <Arduino.h>
 #include <lvgl.h>
@@ -18,26 +17,27 @@ extern char ws_text_value[1024];
 
 // Drawing algorithm toggles
 static bool draw_r0_enabled = true;  // image background
-static bool draw_r1_enabled = true;
+static bool draw_r1_enabled = false;
 static bool draw_r2_enabled = false;
-static bool draw_r3_enabled = true;
-static bool draw_r4_enabled = false;
+static bool draw_r3_enabled = false;
+static bool draw_r4_enabled = true;
+static bool draw_r5_enabled = true; // Initialize new flag
 
 static lv_obj_t *canvas;
 static lv_color_t *cbuf = nullptr;
 
 
 static lv_obj_t* img_widget = nullptr;
-int decoded_img_width = 0;
-int decoded_img_height = 0;
+// int decoded_img_width = 0;
+// int decoded_img_height = 0;
 
 void check_image_update() {
     // r0: image background
     if (draw_r0_enabled && new_image_available && decoded_img_buffer != nullptr && decoded_img_size > 0) {
-        // --- Assume JPEG decoder provides width/height and RGB565 data ---
-        extern int decoded_img_width;
-        extern int decoded_img_height;
+        
+        // --- Using global image width/height and RGB565 data ---
         if (canvas && cbuf && decoded_img_width > 0 && decoded_img_height > 0) {
+        
             // Draw image into the canvas buffer as the background (before generative art)
             // This will be visible underneath all generative art overlays
             lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
@@ -258,6 +258,137 @@ static void draw_r4()
   lv_canvas_draw_arc(canvas, x, y, 20, 0, 360, &dsc);
 }
 
+static void draw_r5() {
+    Serial.println("[draw_r5] Entered."); // New debug print
+
+    if (!decoded_img_buffer) {
+        Serial.println("[draw_r5] decoded_img_buffer is NULL. Exiting."); // Enhanced debug print
+        return;
+    }
+    Serial.print("[draw_r5] decoded_img_width: "); Serial.print(decoded_img_width);
+    Serial.print(", decoded_img_height: "); Serial.println(decoded_img_height); // New debug print
+
+    if (decoded_img_width <= 0 || decoded_img_height <= 0) {
+        Serial.println("[draw_r5] Invalid image dimensions. Exiting."); // Enhanced debug print
+        return; 
+    }
+
+    Serial.print("[draw_r5] ws_number_value (radius ctrl): "); Serial.print(ws_number_value);
+    Serial.print(", ws_slider_value (opacity ctrl): "); Serial.println(ws_slider_value); // New debug print
+
+    uint8_t fill_opa = 10 + (uint8_t)(ws_slider_value * 245.0f); 
+    fill_opa = constrain(fill_opa, 10, 255);
+
+    float cell_w = (float)CANVAS_WIDTH / decoded_img_width;
+    float cell_h = (float)CANVAS_HEIGHT / decoded_img_height;
+
+    float min_radius_scale = 0.1f;
+    float max_radius_scale = 1.0f;
+    float radius_scale = min_radius_scale + (ws_number_value - 1.0f) * (max_radius_scale - min_radius_scale) / 19.0f;
+    radius_scale = constrain(radius_scale, min_radius_scale, max_radius_scale);
+
+    float base_radius = fminf(cell_w, cell_h) / 2.0f;
+    int16_t outer_radius = (int16_t)(base_radius * radius_scale);
+
+    if (outer_radius < 2) outer_radius = 2; 
+    int16_t inner_radius = outer_radius - 1; 
+    if (inner_radius < 1 && outer_radius >=1) inner_radius = 1; 
+    else if (inner_radius < 1) inner_radius = 0;
+
+    Serial.print("[draw_r5] Calculated cell_w: "); Serial.print(cell_w);
+    Serial.print(", cell_h: "); Serial.println(cell_h);
+    Serial.print("[draw_r5] Calculated base_radius: "); Serial.print(base_radius);
+    Serial.print(", radius_scale: "); Serial.println(radius_scale);
+    Serial.print("[draw_r5] Calculated outer_radius: "); Serial.print(outer_radius);
+    Serial.print(", inner_radius: "); Serial.println(inner_radius); // New debug prints
+
+    uint16_t* src_pixels = (uint16_t*)decoded_img_buffer; 
+
+    lv_draw_rect_dsc_t dsc;
+    lv_draw_rect_dsc_init(&dsc);
+    dsc.radius = LV_RADIUS_CIRCLE; 
+
+    for (int y_src = 0; y_src < decoded_img_height; ++y_src) {
+        for (int x_src = 0; x_src < decoded_img_width; ++x_src) {
+            int16_t cx = (int16_t)(x_src * cell_w + cell_w / 2.0f);
+            int16_t cy = (int16_t)(y_src * cell_h + cell_h / 2.0f);
+
+            // Debug for the first potential circle (top-left of the source image grid)
+            if (x_src == 0 && y_src == 0) {
+                Serial.println("[draw_r5] Processing first source pixel (0,0):");
+                Serial.print("  cx: "); Serial.print(cx);
+                Serial.print(", cy: "); Serial.println(cy);
+            }
+
+            if (outer_radius >= 1) {
+                dsc.bg_color = lv_color_black();
+                dsc.bg_opa = LV_OPA_COVER; 
+                dsc.border_opa = LV_OPA_TRANSP; 
+
+                lv_area_t outline_area;
+                outline_area.x1 = cx - outer_radius;
+                outline_area.y1 = cy - outer_radius;
+                outline_area.x2 = cx + outer_radius - 1;
+                outline_area.y2 = cy + outer_radius - 1;
+                
+                int16_t outline_width = lv_area_get_width(&outline_area);
+                int16_t outline_height = lv_area_get_height(&outline_area);
+
+                if (x_src == 0 && y_src == 0) {
+                    Serial.print("  Outline - x1: "); Serial.print(outline_area.x1);
+                    Serial.print(", y1: "); Serial.print(outline_area.y1);
+                    Serial.print(", w: "); Serial.print(outline_width);
+                    Serial.print(", h: "); Serial.println(outline_height);
+                }
+                
+                if (outline_width > 0 && outline_height > 0) {
+                    lv_canvas_draw_rect(canvas, outline_area.x1, outline_area.y1, outline_width, outline_height, &dsc);
+                } else if (x_src == 0 && y_src == 0) {
+                    Serial.println("  Outline not drawn (width/height <= 0).");
+                }
+            }
+
+            if (inner_radius >= 1) {
+                uint16_t pixel_color_val = src_pixels[y_src * decoded_img_width + x_src];
+                lv_color_t lv_pixel_color;
+                lv_pixel_color.full = pixel_color_val;
+
+                dsc.bg_color = lv_pixel_color;
+                dsc.bg_opa = fill_opa; 
+                dsc.border_opa = LV_OPA_TRANSP; 
+
+                lv_area_t fill_area;
+                fill_area.x1 = cx - inner_radius;
+                fill_area.y1 = cy - inner_radius;
+                fill_area.x2 = cx + inner_radius - 1;
+                fill_area.y2 = cy + inner_radius - 1;
+                
+                int16_t fill_width = lv_area_get_width(&fill_area);
+                int16_t fill_height = lv_area_get_height(&fill_area);
+
+                if (x_src == 0 && y_src == 0) {
+                    Serial.print("  Fill - x1: "); Serial.print(fill_area.x1);
+                    Serial.print(", y1: "); Serial.print(fill_area.y1);
+                    Serial.print(", w: "); Serial.print(fill_width);
+                    Serial.print(", h: "); Serial.println(fill_height);
+                    Serial.print("  Fill - src_pixel_color (hex): "); Serial.println(pixel_color_val, HEX);
+                    Serial.print("  Fill - fill_opa: "); Serial.println(fill_opa);
+                }
+
+                if (fill_width > 0 && fill_height > 0) {
+                    lv_canvas_draw_rect(canvas, fill_area.x1, fill_area.y1, fill_width, fill_height, &dsc);
+                } else if (x_src == 0 && y_src == 0) {
+                    Serial.println("  Fill not drawn (width/height <= 0).");
+                }
+            } else if (x_src == 0 && y_src == 0) {
+                 Serial.println("  Fill not drawn (inner_radius < 1).");
+            }
+        }
+    }
+    Serial.println("[draw_r5] Finished processing all pixels."); // New debug print
+}
+
+
 static void draw_frame(lv_timer_t *t)
 {
 
@@ -265,6 +396,7 @@ static void draw_frame(lv_timer_t *t)
   if (draw_r2_enabled) draw_r2();
   if (draw_r3_enabled) draw_r3();
   if (draw_r4_enabled) draw_r4();
+  if (draw_r5_enabled) draw_r5(); // Add r5 to the draw loop
 }
 
 /////////
@@ -399,51 +531,85 @@ void sketch_setup()
 void sketch_loop()
 {
   // --- Message parsing for text commands ---
-  // Allow repeated commands (e.g. clear, r1 on, r1 off, etc.)
   check_image_update(); // Check for new image updates
 
   // Parse text commands for toggling draw algorithms and clear
   if (strcmp(ws_text_value, "clear") == 0) {
-      // Clear the canvas to white
       if (canvas && cbuf) {
           lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
+          Serial.println("[Sketch] Canvas cleared.");
       }
-      // Optionally clear the image widget as well
-      if (img_widget) {
-          lv_img_set_src(img_widget, NULL);
-      }
-      Serial.println("[Sketch] Received 'clear' command, screen cleared.");
+      // Optionally clear the image widget as well (if you were using one separately)
+      // if (img_widget) {
+      //     lv_img_set_src(img_widget, NULL);
+      // }
+      // Serial.println("[Sketch] Received 'clear' command, screen cleared."); // Redundant if canvas clear logs
   } else if (strncmp(ws_text_value, "r0 on", 5) == 0) {
-      draw_r0_enabled = true;
-      Serial.println("[Sketch] r0 enabled");
+      if (!draw_r0_enabled) {
+          draw_r0_enabled = true;
+          Serial.println("[Sketch] Image Background (r0) enabled");
+      }
   } else if (strncmp(ws_text_value, "r0 off", 6) == 0) {
-      draw_r0_enabled = false;
-      Serial.println("[Sketch] r0 disabled");
+      if (draw_r0_enabled) {
+          draw_r0_enabled = false;
+          Serial.println("[Sketch] Image Background (r0) disabled");
+      }
   } else if (strncmp(ws_text_value, "r1 on", 5) == 0) {
-      draw_r1_enabled = true;
-      Serial.println("[Sketch] r1 enabled");
+      if (!draw_r1_enabled) {
+          draw_r1_enabled = true;
+          Serial.println("[Sketch] Random Lines (r1) enabled");
+      }
   } else if (strncmp(ws_text_value, "r1 off", 6) == 0) {
-      draw_r1_enabled = false;
-      Serial.println("[Sketch] r1 disabled");
+      if (draw_r1_enabled) {
+          draw_r1_enabled = false;
+          Serial.println("[Sketch] Random Lines (r1) disabled");
+      }
   } else if (strncmp(ws_text_value, "r2 on", 5) == 0) {
-      draw_r2_enabled = true;
-      Serial.println("[Sketch] r2 enabled");
+      if (!draw_r2_enabled) {
+          draw_r2_enabled = true;
+          Serial.println("[Sketch] Random Triangles (r2) enabled");
+      }
   } else if (strncmp(ws_text_value, "r2 off", 6) == 0) {
-      draw_r2_enabled = false;
-      Serial.println("[Sketch] r2 disabled");
+      if (draw_r2_enabled) {
+          draw_r2_enabled = false;
+          Serial.println("[Sketch] Random Triangles (r2) disabled");
+      }
   } else if (strncmp(ws_text_value, "r3 on", 5) == 0) {
-      draw_r3_enabled = true;
-      Serial.println("[Sketch] r3 enabled");
+      if (!draw_r3_enabled) {
+          draw_r3_enabled = true;
+          Serial.println("[Sketch] Random Arcs (r3) enabled");
+      }
   } else if (strncmp(ws_text_value, "r3 off", 6) == 0) {
-      draw_r3_enabled = false;
-      Serial.println("[Sketch] r3 disabled");
+      if (draw_r3_enabled) {
+          draw_r3_enabled = false;
+          Serial.println("[Sketch] Random Arcs (r3) disabled");
+      }
   } else if (strncmp(ws_text_value, "r4 on", 5) == 0) {
-      draw_r4_enabled = true;
-      Serial.println("[Sketch] r4 enabled");
+      if (!draw_r4_enabled) {
+          draw_r4_enabled = true;
+          Serial.println("[Sketch] Small Random Circles (r4) enabled");
+      }
   } else if (strncmp(ws_text_value, "r4 off", 6) == 0) {
-      draw_r4_enabled = false;
-      Serial.println("[Sketch] r4 disabled");
+      if (draw_r4_enabled) {
+          draw_r4_enabled = false;
+          Serial.println("[Sketch] Small Random Circles (r4) disabled");
+      }
+  } else if (strncmp(ws_text_value, "r5 on", 5) == 0) {
+      if (!draw_r5_enabled) {
+          draw_r5_enabled = true;
+          Serial.println("[Sketch] Pointillist Image (r5) enabled");
+      }
+  } else if (strncmp(ws_text_value, "r5 off", 6) == 0) {
+      if (draw_r5_enabled) {
+          draw_r5_enabled = false;
+          Serial.println("[Sketch] Pointillist Image (r5) disabled");
+      }
   }
+  // After processing, clear ws_text_value to prevent re-processing the same command
+  // unless it's intended to be stateful and checked every loop.
+  // For these toggle commands, it's better to process once.
+  // Assuming ws_text_value is cleared or managed by the calling code in lvgl_sketch_web.ino after sketch_loop.
+  // If not, add: ws_text_value[0] = '\\0';
 }
 
 

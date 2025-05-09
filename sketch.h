@@ -9,8 +9,9 @@ extern char ip_address_str[16];
 extern float ws_slider_value;
 extern float ws_number_value;
 extern char ws_text_value[1024]; // Increased for longer commands
-// Prototype for draw_r2
-void draw_r2();
+extern int decoded_img_width;
+extern int decoded_img_height;
+
 
 void sketch_setup();  // to be called from setup
 void sketch_loop();   // optional: if you want animation or interaction
@@ -21,3 +22,12 @@ void sketch_loop();   // optional: if you want animation or interaction
 extern uint8_t* decoded_img_buffer;
 extern size_t decoded_img_size;
 extern volatile bool new_image_available;
+extern int decoded_img_width;
+extern int decoded_img_height;
+
+// Remove static definitions from here, they are in sketch.cpp
+// static bool draw_r3_enabled = true;
+// static bool draw_r4_enabled = false;
+// static bool draw_r5_enabled = false; 
+
+// static lv_obj_t *canvas;
