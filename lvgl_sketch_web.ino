@@ -175,24 +175,24 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
                 // Print the raw payload for debugging
                 Serial.printf("[WSc] Raw payload for 'image' (length %zu): %.*s\n", length, (int)length, (char*)payload);
 
-                if (doc.containsKey("value")) {
-                    JsonVariant image_val = doc["value"];
+                if (doc.containsKey("data")) { // MODIFIED: Check for "data" key
+                    JsonVariant image_val = doc["data"]; // MODIFIED: Get "data" key
                     if (image_val.isNull()) {
-                        Serial.println("[WSc] JSON 'value' field is null.");
+                        Serial.println("[WSc] JSON 'data' field is null."); // MODIFIED: Log for "data"
                     } else if (image_val.is<const char*>()) {
                         const char* b64_data = image_val.as<const char*>();
-                        Serial.printf("[WSc] JSON 'value' field (string) starts with: %.*s...\n", 30, b64_data ? b64_data : "NULL_PTR");
+                        Serial.printf("[WSc] JSON 'data' field (string) starts with: %.*s...\n", 30, b64_data ? b64_data : "NULL_PTR"); // MODIFIED: Log for "data"
                         if (b64_data) {
-                            Serial.printf("[WSc] JSON 'value' field string length: %d\n", strlen(b64_data));
+                            Serial.printf("[WSc] JSON 'data' field string length: %d\n", strlen(b64_data)); // MODIFIED: Log for "data"
                         }
                     } else {
-                        Serial.printf("[WSc] JSON 'value' field is not a string. Actual type: %s\n", image_val.is<int>() ? "int" : image_val.is<float>() ? "float" : image_val.is<bool>() ? "bool" : image_val.is<JsonArray>() ? "array" : image_val.is<JsonObject>() ? "object" : "unknown");
+                        Serial.printf("[WSc] JSON 'data' field is not a string. Actual type: %s\n", image_val.is<int>() ? "int" : image_val.is<float>() ? "float" : image_val.is<bool>() ? "bool" : image_val.is<JsonArray>() ? "array" : image_val.is<JsonObject>() ? "object" : "unknown"); // MODIFIED: Log for "data"
                     }
                 } else {
-                    Serial.println("[WSc] JSON 'value' field is missing for 'image' type.");
+                    Serial.println("[WSc] JSON 'data' field is missing for 'image' type."); // MODIFIED: Log for "data"
                 }
 
-                const char *base64_image_data = doc["value"];
+                const char *base64_image_data = doc["data"]; // MODIFIED: Use "data" key
                 if (base64_image_data) {
                     Serial.println("[WSc] Received image data (base64_image_data is not null). Decoding...");
                     size_t b64_decoded_len;
@@ -266,7 +266,7 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
                     g_jpeg_target_buffer = nullptr;
                     g_jpeg_target_width = 0;
                 } else {
-                    Serial.println("[WSc] Debug: base64_image_data (from doc's value field) is null.");
+                    Serial.println("[WSc] Debug: base64_image_data (from doc's 'data' field) is null."); // MODIFIED: Log for "data"
                 }
             }
             // ... any other message types ...
