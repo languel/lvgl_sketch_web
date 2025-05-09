@@ -171,53 +171,53 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
             }
             else if (strcmp(msg_type, "image") == 0)
             {
-                Serial.println("[WSc] 'image' message type identified."); // Confirm this block is reached
+                // Serial.println("[WSc] 'image' message type identified."); // Confirm this block is reached
                 // Print the raw payload for debugging
-                Serial.printf("[WSc] Raw payload for 'image' (length %zu): %.*s\n", length, (int)length, (char*)payload);
+                // Serial.printf("[WSc] Raw payload for 'image' (length %zu): %.*s\n", length, (int)length, (char*)payload);
 
                 if (doc.containsKey("data")) { // MODIFIED: Check for "data" key
                     JsonVariant image_val = doc["data"]; // MODIFIED: Get "data" key
                     if (image_val.isNull()) {
-                        Serial.println("[WSc] JSON 'data' field is null."); // MODIFIED: Log for "data"
+                        // Serial.println("[WSc] JSON 'data' field is null."); // MODIFIED: Log for "data"
                     } else if (image_val.is<const char*>()) {
                         const char* b64_data = image_val.as<const char*>();
-                        Serial.printf("[WSc] JSON 'data' field (string) starts with: %.*s...\n", 30, b64_data ? b64_data : "NULL_PTR"); // MODIFIED: Log for "data"
+                        // Serial.printf("[WSc] JSON 'data' field (string) starts with: %.*s...\n", 30, b64_data ? b64_data : "NULL_PTR"); // MODIFIED: Log for "data"
                         if (b64_data) {
-                            Serial.printf("[WSc] JSON 'data' field string length: %d\n", strlen(b64_data)); // MODIFIED: Log for "data"
+                            // Serial.printf("[WSc] JSON 'data' field string length: %d\n", strlen(b64_data)); // MODIFIED: Log for "data"
                         }
                     } else {
-                        Serial.printf("[WSc] JSON 'data' field is not a string. Actual type: %s\n", image_val.is<int>() ? "int" : image_val.is<float>() ? "float" : image_val.is<bool>() ? "bool" : image_val.is<JsonArray>() ? "array" : image_val.is<JsonObject>() ? "object" : "unknown"); // MODIFIED: Log for "data"
+                        // Serial.printf("[WSc] JSON 'data' field is not a string. Actual type: %s\n", image_val.is<int>() ? "int" : image_val.is<float>() ? "float" : image_val.is<bool>() ? "bool" : image_val.is<JsonArray>() ? "array" : image_val.is<JsonObject>() ? "object" : "unknown"); // MODIFIED: Log for "data"
                     }
                 } else {
-                    Serial.println("[WSc] JSON 'data' field is missing for 'image' type."); // MODIFIED: Log for "data"
+                    // Serial.println("[WSc] JSON 'data' field is missing for 'image' type."); // MODIFIED: Log for "data"
                 }
 
                 const char *base64_image_data = doc["data"]; // MODIFIED: Use "data" key
                 if (base64_image_data) {
-                    Serial.println("[WSc] Received image data (base64_image_data is not null). Decoding...");
+                    // Serial.println("[WSc] Received image data (base64_image_data is not null). Decoding...");
                     size_t b64_decoded_len;
                     uint8_t *jpeg_raw_data = base64_decode_to_psram(base64_image_data, &b64_decoded_len);
 
                     if (jpeg_raw_data && b64_decoded_len > 0) {
-                        Serial.printf("[JPEG] Base64 decoded to %d bytes in PSRAM.\n", b64_decoded_len);
+                        // Serial.printf("[JPEG] Base64 decoded to %d bytes in PSRAM.\n", b64_decoded_len);
 
                         if (jpeg.openRAM(jpeg_raw_data, b64_decoded_len, jpegDrawCallback)) {
-                            Serial.println("[JPEG] RAM buffer opened.");
+                            // Serial.println("[JPEG] RAM buffer opened.");
                             jpeg.setPixelType(RGB565_LITTLE_ENDIAN); // Critical for LVGL compatibility
 
                             int new_img_width = jpeg.getWidth();
                             int new_img_height = jpeg.getHeight();
-                            Serial.printf("[JPEG] Dimensions: %d x %d\n", new_img_width, new_img_height);
+                            // Serial.printf("[JPEG] Dimensions: %d x %d\n", new_img_width, new_img_height);
 
                             if (new_img_width > 0 && new_img_height > 0) {
                                 size_t new_buffer_byte_size = (size_t)new_img_width * new_img_height * sizeof(uint16_t);
                                 uint16_t* temp_new_pixel_buffer = (uint16_t*)heap_caps_malloc(new_buffer_byte_size, MALLOC_CAP_SPIRAM);
 
                                 if (temp_new_pixel_buffer) {
-                                    Serial.printf("[JPEG] Allocated %zu bytes for new pixel buffer in PSRAM.\n", new_buffer_byte_size);
+                                    // Serial.printf("[JPEG] Allocated %zu bytes for new pixel buffer in PSRAM.\n", new_buffer_byte_size);
 
                                     if (decoded_buffer_is_dynamic && decoded_img_buffer != nullptr && decoded_img_buffer != test_pixel_buffer) {
-                                        Serial.println("[JPEG] Freeing previous dynamic image buffer.");
+                                        // Serial.println("[JPEG] Freeing previous dynamic image buffer.");
                                         heap_caps_free(decoded_img_buffer);
                                     }
 
@@ -230,12 +230,12 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
                                     g_jpeg_target_buffer = decoded_img_buffer;
                                     g_jpeg_target_width = decoded_img_width;
 
-                                    Serial.println("[JPEG] Starting decode process...");
+                                    // Serial.println("[JPEG] Starting decode process...");
                                     if (jpeg.decode(0, 0, 0)) {
-                                        Serial.println("[JPEG] Decode successful.");
+                                        // Serial.println("[JPEG] Decode successful.");
                                         new_image_available = true;
                                     } else {
-                                        Serial.println("[JPEG] Decode FAILED!");
+                                        // Serial.println("[JPEG] Decode FAILED!");
                                         heap_caps_free(decoded_img_buffer); // Free the just-allocated buffer
                                         // Revert to test buffer
                                         decoded_img_buffer = test_pixel_buffer;
@@ -246,27 +246,27 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
                                         new_image_available = true; // Show test image
                                     }
                                 } else {
-                                    Serial.println("[JPEG] Failed to allocate PSRAM for new pixel buffer!");
+                                    // Serial.println("[JPEG] Failed to allocate PSRAM for new pixel buffer!");
                                 }
                             } else {
-                                Serial.println("[JPEG] Header invalid or image dimensions are zero.");
+                                // Serial.println("[JPEG] Header invalid or image dimensions are zero.");
                             }
                             jpeg.close();
-                            Serial.println("[JPEG] Closed.");
+                            // Serial.println("[JPEG] Closed.");
                         } else {
-                            Serial.println("[JPEG] jpeg.openRAM() failed!");
+                            // Serial.println("[JPEG] jpeg.openRAM() failed!");
                         }
                         heap_caps_free(jpeg_raw_data); // Free the base64 decoded data
-                        Serial.println("[JPEG] Freed base64 decoded data buffer.");
+                        // Serial.println("[JPEG] Freed base64 decoded data buffer.");
                     } else {
-                        Serial.println("[JPEG] Base64 decoding failed or produced zero length data.");
+                        // Serial.println("[JPEG] Base64 decoding failed or produced zero length data.");
                         if (jpeg_raw_data) heap_caps_free(jpeg_raw_data); // Safety free
                     }
                     // Clear global helpers
                     g_jpeg_target_buffer = nullptr;
                     g_jpeg_target_width = 0;
                 } else {
-                    Serial.println("[WSc] Debug: base64_image_data (from doc's 'data' field) is null."); // MODIFIED: Log for "data"
+                    // Serial.println("[WSc] Debug: base64_image_data (from doc's 'data' field) is null."); // MODIFIED: Log for "data"
                 }
             }
             // ... any other message types ...
