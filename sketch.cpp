@@ -17,7 +17,6 @@ extern char ws_text_value[1024];
 extern int received_image_width;  // Definition for variable from sketch.h
 extern int received_image_height; // Definition for variable from sketch.h
 
-
 // Extern declarations for global variables defined in the .ino file
 // extern uint16_t* decoded_img_buffer; // This is defined in .ino
 // extern size_t decoded_img_size; // This is defined in .ino
@@ -41,10 +40,101 @@ static bool draw_r5_enabled = true; // Initialize new flag
 static lv_obj_t *canvas;
 static lv_color_t *cbuf = nullptr;
 
-
 static lv_obj_t* img_widget = nullptr;
 // int decoded_img_width = 0;
 // int decoded_img_height = 0;
+
+
+static const lv_color_t palette[] = {
+    lv_color_make(128, 0, 0),   // maroon
+    lv_color_make(255, 215, 0), // gold
+    lv_color_make(255, 0, 0),   // red
+    lv_color_make(255, 33, 2),   // deep red
+
+    lv_color_make(255, 165, 0),  // orange
+    lv_color_make(255, 20, 147), // deeppink
+
+    lv_color_make(255, 192, 203), // pink
+    lv_color_make(250, 235, 215), // antiquewhite
+    lv_color_make(0, 0, 0),       // black
+    lv_color_make(0, 100, 0),     // hunter green
+    lv_color_make(0, 128, 0),     // green
+
+    lv_color_make(0, 0, 128),   // navy
+    lv_color_make(0, 0, 255),   // blue
+    lv_color_make(0, 191, 255), // deepskyblue
+};
+
+// palette = ["red","gold","pink",color(255,33,2)] //p5code
+
+static const uint8_t palette_size = sizeof(palette) / sizeof(palette[0]);
+
+// Timer callback to delete the IP label
+static void ip_label_delete_timer_cb(lv_timer_t * timer) {
+    Serial.println("-> ip_label_delete_timer_cb called"); // DEBUG
+    lv_obj_t * label = (lv_obj_t *)timer->user_data;
+    if(label) {
+        Serial.println("   Deleting IP label..."); // DEBUG
+        lv_obj_del(label);
+    } else {
+        Serial.println("   Label object was NULL in timer callback."); // DEBUG
+    }
+}
+
+float frand(float a, float b)
+{
+  return a + ((float)random(0, 10000) / 10000.0f) * (b - a);
+}
+
+// Example: Use slider value to control line width range in draw_r1
+static String lastTextValue = ""; // Store the last printed text value
+static bool clear_command_processed = true; // Flag to ensure clear is processed once
+
+static void process_text_commands() {
+    if (strcmp(ws_text_value, "default") == 0 && lastTextValue == "default") {
+        return; // No new command
+    }
+
+    String currentTextValue = String(ws_text_value);
+
+    if (currentTextValue != lastTextValue) {
+        Serial.printf("[Sketch] Current text: %s\n", ws_text_value);
+        lastTextValue = currentTextValue;
+        clear_command_processed = false; // New command, allow processing
+
+        if (currentTextValue == "clear" && !clear_command_processed) {
+            if (canvas && cbuf) {
+                lv_canvas_fill_bg(canvas, lv_color_hex(0x000000), LV_OPA_COVER); // Clear to black
+                lv_obj_invalidate(canvas);
+                Serial.println("[Sketch] Canvas cleared.");
+                clear_command_processed = true;
+            }
+            // Reset ws_text_value to prevent reprocessing "clear"
+            strcpy(ws_text_value, "default"); 
+            lastTextValue = "default"; // Also reset lastTextValue to prevent re-triggering on "default"
+            return; // Exit after processing clear
+        }
+        // Toggle drawing modes
+        else if (currentTextValue == "r0 on") { draw_r0_enabled = true; Serial.println("[Sketch] Image Background (r0) enabled"); }
+        else if (currentTextValue == "r0 off") { draw_r0_enabled = false; Serial.println("[Sketch] Image Background (r0) disabled"); }
+        else if (currentTextValue == "r1 on") { draw_r1_enabled = true; Serial.println("[Sketch] Random Lines (r1) enabled"); }
+        else if (currentTextValue == "r1 off") { draw_r1_enabled = false; Serial.println("[Sketch] Random Lines (r1) disabled"); }
+        else if (currentTextValue == "r2 on") { draw_r2_enabled = true; Serial.println("[Sketch] Random Triangles (r2) enabled"); }
+        else if (currentTextValue == "r2 off") { draw_r2_enabled = false; Serial.println("[Sketch] Random Triangles (r2) disabled"); }
+        else if (currentTextValue == "r3 on") { draw_r3_enabled = true; Serial.println("[Sketch] Random Arcs (r3) enabled"); }
+        else if (currentTextValue == "r3 off") { draw_r3_enabled = false; Serial.println("[Sketch] Random Arcs (r3) disabled"); }
+        else if (currentTextValue == "r4 on") { draw_r4_enabled = true; Serial.println("[Sketch] Small Circles (r4) enabled"); }
+        else if (currentTextValue == "r4 off") { draw_r4_enabled = false; Serial.println("[Sketch] Small Circles (r4) disabled"); }
+        else if (currentTextValue == "r5 on") { draw_r5_enabled = true; Serial.println("[Sketch] Pointillist Image (r5) enabled"); }
+        else if (currentTextValue == "r5 off") { draw_r5_enabled = false; Serial.println("[Sketch] Pointillist Image (r5) disabled"); }
+        // Add other text commands here if needed
+
+        // After processing any command other than "clear", reset ws_text_value if it's not a persistent state
+        // For toggle commands like "r1 on/off", we don't need to reset ws_text_value immediately,
+        // as lastTextValue check prevents re-processing.
+        // However, for "clear", it was important to reset it.
+    }
+}
 
 void check_image_update() {
     // r0: image background
@@ -84,57 +174,23 @@ void check_image_update() {
             lv_obj_invalidate(canvas);
         }
         new_image_available = false;
+    } else if (!draw_r0_enabled) {
+        // If r0 is disabled, ensure the canvas area where the image would be is cleared
+        // This assumes other drawing functions might not fully overwrite it.
+        // If other functions always fill the canvas, this might not be strictly necessary,
+        // but it's safer for explicit control.
+        // lv_canvas_fill_bg(canvas, lv_color_hex(0x000000), LV_OPA_COVER); // Example: Clear to black
+        // Or, if you want it to be transparent to see a screen background (if any)
+        // lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_TRANSP); // Clear to transparent white
+        // For now, let's assume other drawing functions will cover it or a default bg is fine.
+        // If you see artifacts when r0 is off, we'll add explicit clearing here.
     }
 }
-
-
-static const lv_color_t palette[] = {
-    lv_color_make(128, 0, 0),   // maroon
-    lv_color_make(255, 215, 0), // gold
-    lv_color_make(255, 0, 0),   // red
-    lv_color_make(255, 33, 2),   // deep red
-
-    lv_color_make(255, 165, 0),  // orange
-    lv_color_make(255, 20, 147), // deeppink
-
-    lv_color_make(255, 192, 203), // pink
-    lv_color_make(250, 235, 215), // antiquewhite
-    lv_color_make(0, 0, 0),       // black
-    lv_color_make(0, 100, 0),     // hunter green
-    lv_color_make(0, 128, 0),     // green
-
-    lv_color_make(0, 0, 128),   // navy
-    lv_color_make(0, 0, 255),   // blue
-    lv_color_make(0, 191, 255), // deepskyblue
-};
-
-// palette = ["red","gold","pink",color(255,33,2)] //p5code
-
-static const uint8_t palette_size = sizeof(palette) / sizeof(palette[0]);
-
-// Timer callback to delete the IP label
-static void ip_label_delete_timer_cb(lv_timer_t * timer) {
-    Serial.println("-> ip_label_delete_timer_cb called"); // DEBUG
-    lv_obj_t * label = (lv_obj_t *)timer->user_data;
-    if(label) {
-        Serial.println("   Deleting IP label..."); // DEBUG
-        lv_obj_del(label);
-    } else {
-        Serial.println("   Label object was NULL in timer callback."); // DEBUG
-    }
-}
-
-
-float frand(float a, float b)
-{
-  return a + ((float)random(0, 10000) / 10000.0f) * (b - a);
-}
-
-// Example: Use slider value to control line width range in draw_r1
-static String lastTextValue = ""; // Store the last printed text value
 
 static void draw_r1()
 {
+    // process_text_commands(); // Moved to draw_frame or a dedicated command processing tick
+
     // Map slider (0.0 to 1.0) to a line width range (e.g., 1 to 10)
     // Number controls thickness (1-20)
     int min_width = 1;
@@ -175,13 +231,14 @@ static void draw_r1()
     lv_canvas_draw_line(canvas, line_points, 2, &line_dsc);
 
     // Example: Print text value if it's not the default and has changed
-    if (strcmp(ws_text_value, "default") != 0) {
-        String currentTextValue = String(ws_text_value);
-        if (currentTextValue != lastTextValue) {
-            Serial.printf("[Sketch] Current text: %s\n", ws_text_value);
-            lastTextValue = currentTextValue; // Update the last printed value
-        }
-    }
+    // This specific text logging is now handled in process_text_commands
+    // if (strcmp(ws_text_value, "default") != 0) {
+    //     String currentTextValue = String(ws_text_value);
+    //     if (currentTextValue != lastTextValue) {
+    //         Serial.printf("[Sketch] Current text: %s\\n", ws_text_value);
+    //         lastTextValue = currentTextValue; // Update the last printed value
+    //     }
+    // }
 }
 
 // Draw randomly oriented, colored triangles with opacity and size control
@@ -262,15 +319,51 @@ static void draw_r3()
 
 static void draw_r4()
 {
+    if (!canvas) return;
+    // Determine the number of iterations based on ws_number_value
+    int iterations = max(1, (int)ws_number_value);
 
-  int x = random(0, CANVAS_WIDTH);
-  int y = random(0, CANVAS_HEIGHT);
+    for (int i = 0; i < iterations; ++i) {
+        // Pick a random point on the canvas
+        int x = random(0, CANVAS_WIDTH);
+        int y = random(0, CANVAS_HEIGHT);
 
-  lv_draw_arc_dsc_t dsc;
-  lv_draw_arc_dsc_init(&dsc);
-  dsc.color = palette[random(0, palette_size)];
-  dsc.width = random(1, 5);
-  lv_canvas_draw_arc(canvas, x, y, 20, 0, 360, &dsc);
+        // Determine grid dimensions based on decoded image
+        int grid_cols = decoded_img_width > 0 ? decoded_img_width : 1;
+        int grid_rows = decoded_img_height > 0 ? decoded_img_height : 1;
+
+        // Calculate cell size for mapping canvas coords to image cells
+        float cell_w = (float)CANVAS_WIDTH / grid_cols;
+        float cell_h = (float)CANVAS_HEIGHT / grid_rows;
+
+        // Sample color from image if available, otherwise pick palette
+        uint16_t pixel_color_raw;
+        if (decoded_img_buffer && decoded_img_width > 0 && decoded_img_height > 0) {
+            int c = constrain(x / cell_w, 0, decoded_img_width - 1);
+            int r = constrain(y / cell_h, 0, decoded_img_height - 1);
+            pixel_color_raw = decoded_img_buffer[r * decoded_img_width + c];
+        } else {
+            // Choose a random color from palette if no image
+            uint8_t idx = random(0, palette_size);
+            pixel_color_raw = palette[idx].full;
+        }
+        lv_color_t pixel_color;
+        pixel_color.full = pixel_color_raw;
+
+        // Determine circle size relative to cell size
+        float scale = constrain(ws_number_value, 0.1f, 1.5f);
+        float dia_f = fminf(cell_w, cell_h) * scale;
+        int dia = dia_f >= 1.0f ? (int)dia_f : 1;
+        int radius = dia / 2;
+
+        // Draw filled circle at (x,y)
+        lv_draw_rect_dsc_t dsc;
+        lv_draw_rect_dsc_init(&dsc);
+        dsc.radius = LV_RADIUS_CIRCLE;
+        dsc.bg_opa = LV_OPA_COVER;
+        dsc.bg_color = pixel_color;
+        lv_canvas_draw_rect(canvas, x - radius, y - radius, dia, dia, &dsc);
+    }
 }
 
 // Corrected draw_r5 function to draw a 16x16 grid of circles
@@ -295,63 +388,59 @@ static void draw_r5() { // New signature, no event argument
         return;
     }
 
-        // Use actual canvas dimensions for calculations
-    lv_coord_t canvas_width = lv_obj_get_width(canvas);
-    lv_coord_t canvas_height = lv_obj_get_height(canvas);
-    // const int grid_size = 16; // We want to draw a 16x16 grid of circles
-    const int grid_size = ws_number_value; //
-    // const int circle_diameter = 30; // Circle diameter
-    //calculate circle diameter based on canvas size and grid size
+    lv_coord_t canvas_w = lv_obj_get_width(canvas);
+    lv_coord_t canvas_h = lv_obj_get_height(canvas);
 
-    const int circle_diameter = (int)(fminf(canvas_width, canvas_height) / grid_size * 0.9f); // 80% of cell size
-    const int circle_radius = circle_diameter / 2;
+    // Grid dimensions are determined by the decoded image dimensions
+    int grid_cols = decoded_img_width;
+    int grid_rows = decoded_img_height;
 
+    if (grid_cols <= 0 || grid_rows <= 0) {
+        LV_LOG_WARN("draw_r5: Decoded image dimensions are invalid for grid.");
+        return;
+    }
 
+    // Calculate cell size to fit the image grid onto the canvas
+    float cell_w = (float)canvas_w / grid_cols;
+    float cell_h = (float)canvas_h / grid_rows;
 
-    // Calculate cell size to fit the grid onto the canvas
-    float cell_width = (float)canvas_width / grid_size;
-    float cell_height = (float)canvas_height / grid_size;
+    // ws_number_value (e.g., 0.1 to 2.0) controls circle size relative to cell size
+    // Let's ensure ws_number_value is in a sensible range, e.g., 0.1 to 1.0 for diameter scaling
+    // If ws_number_value comes from the number input (1-20), we need to map it.
+    // For now, let's assume ws_number_value is a direct scale factor (e.g. 0.8 for 80% of cell)
+    // Clamp it to a reasonable range to prevent zero or excessively large circles.
+    float circle_scale_factor = constrain(ws_number_value, 0.1f, 1.5f); // Example range
+
+    // Diameter is based on the smaller of cell_w or cell_h to ensure circles fit
+    float circle_diameter_float = fminf(cell_w, cell_h) * circle_scale_factor;
+    int circle_diameter = (int)circle_diameter_float;
+    if (circle_diameter < 1) circle_diameter = 1; // Ensure circles are at least 1 pixel
+    int circle_radius = circle_diameter / 2;
+
 
     lv_draw_rect_dsc_t rect_dsc;
     lv_draw_rect_dsc_init(&rect_dsc);
     rect_dsc.radius = LV_RADIUS_CIRCLE; // Make it a circle
-    rect_dsc.border_width = 2;          // Outline width
-    rect_dsc.border_color = lv_color_black(); // Outline color
-    rect_dsc.border_opa = LV_OPA_COVER;
+    // rect_dsc.border_width = 1; // Optional: border for circles
+    // rect_dsc.border_color = lv_color_black();
+    // rect_dsc.border_opa = LV_OPA_50;
     rect_dsc.bg_opa = LV_OPA_COVER;     // Make the circle filled
 
-    for (int r = 0; r < grid_size; ++r) { // row in the display grid
-        for (int c = 0; c < grid_size; ++c) { // column in the display grid
+    for (int r = 0; r < grid_rows; ++r) { // row in the display grid (maps to src_y)
+        for (int c = 0; c < grid_cols; ++c) { // column in the display grid (maps to src_x)
             
-            // Determine which pixel from the source image to use
-            // This implements a basic nearest-neighbor sampling if image and grid sizes differ
-            // For the 16x16 test_pixel_buffer, this will be a 1-to-1 mapping
-            int src_x = (c * decoded_img_width) / grid_size;
-            int src_y = (r * decoded_img_height) / grid_size;
-
-            if (src_x >= decoded_img_width || src_y >= decoded_img_height) {
-                // This shouldn't happen if logic is correct, but as a safeguard
-                continue; 
-            }
-
-            uint16_t pixel_color_raw = decoded_img_buffer[src_y * decoded_img_width + src_x];
+            // Source pixel from the image buffer
+            // (r, c) directly map to (src_y, src_x) because grid dimensions = image dimensions
+            uint16_t pixel_color_raw = decoded_img_buffer[r * decoded_img_width + c];
             lv_color_t pixel_color;
             pixel_color.full = pixel_color_raw; // Assuming LV_COLOR_DEPTH 16 (RGB565)
 
             rect_dsc.bg_color = pixel_color;
 
-            // Calculate circle position (center of the cell)
-            lv_coord_t center_x = (lv_coord_t)((c + 0.5f) * cell_width);
-            lv_coord_t center_y = (lv_coord_t)((r + 0.5f) * cell_height);
+            // Calculate circle position (center of the cell on the canvas)
+            lv_coord_t center_x = (lv_coord_t)((c + 0.5f) * cell_w);
+            lv_coord_t center_y = (lv_coord_t)((r + 0.5f) * cell_h);
 
-            // Define the rectangle area for the circle
-            // lv_area_t circle_area; // Not needed for lv_canvas_draw_rect
-            // circle_area.x1 = center_x - circle_radius;
-            // circle_area.y1 = center_y - circle_radius;
-            // circle_area.x2 = center_x + circle_radius - 1; // x2/y2 are inclusive
-            // circle_area.y2 = center_y + circle_radius - 1;
-
-            // lv_draw_rect(draw_ctx, &rect_dsc, &circle_area); // Old drawing function
             lv_canvas_draw_rect(canvas, center_x - circle_radius, center_y - circle_radius, circle_diameter, circle_diameter, &rect_dsc);
         }
     }
@@ -359,16 +448,20 @@ static void draw_r5() { // New signature, no event argument
 
 static void draw_frame(lv_timer_t *t)
 {
-  if (draw_r5_enabled) draw_r5(); // Corrected: Call without arguments
+  process_text_commands(); // Process text commands once per frame
+
+  check_image_update(); // Handle background image update (r0)
+
+  if (!draw_r0_enabled && !draw_r1_enabled && !draw_r2_enabled && !draw_r3_enabled && !draw_r4_enabled && !draw_r5_enabled) {
+    // If all drawing is disabled, maybe ensure canvas is clear or shows a default state
+    // For now, this is handled by "clear" command and when r0 is turned off.
+  }
+  
   if (draw_r1_enabled) draw_r1();
   if (draw_r2_enabled) draw_r2();
   if (draw_r3_enabled) draw_r3();
   if (draw_r4_enabled) draw_r4();
-  // if (draw_r5_enabled) { // Old call with dummy event
-  //     lv_event_t dummy_event; 
-  //     draw_r5(&dummy_event);  
-  // }
-
+  if (draw_r5_enabled) draw_r5(); 
 }
 
 /////////
@@ -559,12 +652,12 @@ void sketch_loop()
   } else if (strncmp(ws_text_value, "r4 on", 5) == 0) {
       if (!draw_r4_enabled) {
           draw_r4_enabled = true;
-          Serial.println("[Sketch] Small Random Circles (r4) enabled");
+          Serial.println("[Sketch] Small Circles (r4) enabled");
       }
   } else if (strncmp(ws_text_value, "r4 off", 6) == 0) {
       if (draw_r4_enabled) {
           draw_r4_enabled = false;
-          Serial.println("[Sketch] Small Random Circles (r4) disabled");
+          Serial.println("[Sketch] Small Circles (r4) disabled");
       }
   } else if (strncmp(ws_text_value, "r5 on", 5) == 0) {
       if (!draw_r5_enabled) {
