@@ -4,7 +4,6 @@ ESP32 LVGL WebSocket Generative Experiments
 
 ---
 
-
 This project is an ESP32-based application that uses LVGL to create an interactive visual display. It connects to a Wi-Fi network and a WebSocket server to receive commands and data, which dynamically alter the visuals.
 
 **Key functionalities include:**
@@ -34,9 +33,9 @@ You can control which generative art algorithms are active on the ESP32 device b
 * `r3 on` / `r3 off` — Enable/disable random arcs (opacity and thickness controlled by slider/number).
 * `r4 on` / `r4 off` — Enable/disable extra drawing mode (customizable).
 * `r5 on` / `r5 off` — Enable/disable pointillist image rendering. Decodes the last received image and redraws it as a grid of circles.
-    *   The color of each circle corresponds to a pixel in the source image.
-    *   `slider` controls the opacity of the circles.
-    *   `number` controls the radius of the circles relative to their grid cell size (e.g., a larger number makes bigger circles).
+* The color of each circle corresponds to a pixel in the source image.
+* `slider` controls the opacity of the circles.
+* `number` controls the radius of the circles relative to their grid cell size (e.g., a larger number makes bigger circles).
 * `clear` — Immediately clears the canvas and removes the image background.
 
 You can send these commands repeatedly; each will be processed every time.

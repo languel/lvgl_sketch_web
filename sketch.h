@@ -19,15 +19,11 @@ void sketch_loop();   // optional: if you want animation or interaction
 // sketch.h
 #define MAX_DECODED_IMG_SIZE (4* 1024 * 1024) // 4MB, adjust as needed for your images
 
-extern uint8_t* decoded_img_buffer;
-extern size_t decoded_img_size;
-extern volatile bool new_image_available;
+// extern lv_obj_t *canvas; // canvas is static in sketch.cpp
+// extern lv_color_t *cbuf; // cbuf is static in sketch.cpp
+
+extern uint16_t* decoded_img_buffer; // Corrected to uint16_t*
 extern int decoded_img_width;
 extern int decoded_img_height;
-
-// Remove static definitions from here, they are in sketch.cpp
-// static bool draw_r3_enabled = true;
-// static bool draw_r4_enabled = false;
-// static bool draw_r5_enabled = false; 
-
-// static lv_obj_t *canvas;
+// extern size_t decoded_img_size; // This is a global in .ino, if needed here, ensure it's extern in .ino too
+extern volatile bool new_image_available; // Keep volatile

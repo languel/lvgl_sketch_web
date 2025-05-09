@@ -22,21 +22,41 @@ WebSocketsClient webSocket;
 bool isWebSocketConnected = false; // Track connection status
 // --- End WebSocket Settings ---
 
+
 // --- Global Control Variables ---
 float ws_slider_value = 0.5f;         // Default value
 float ws_number_value = 1.0f;         // Default value
 char ws_text_value[1024] = "default"; // Default value, ensure size matches sketch.h
-int decoded_img_width = 0;
-int decoded_img_height = 0;
+int decoded_img_width = 16;
+int decoded_img_height = 16;
 
 // Use PSRAM for large image buffer
 #include <esp_heap_caps.h>
 #define MAX_DECODED_IMG_SIZE (4 * 1024 * 1024) // 4MB, adjust as needed
 
-uint8_t *decoded_img_buffer = nullptr;
-size_t decoded_img_size = 0;
-volatile bool new_image_available = false;
+// --- Test pixel buffer for fallback/random image ---
+uint16_t test_pixel_buffer[16 * 16];
+uint16_t *decoded_img_buffer = test_pixel_buffer; // CORRECTED: type is uint16_t*
+size_t decoded_img_size = sizeof(test_pixel_buffer);
+volatile bool new_image_available = true;
 // --- End Global Control Variables ---
+
+// Helper to initialize the test pixel buffer with random colors
+void init_test_pixel_buffer() {
+    randomSeed(analogRead(0));
+    for (int i = 0; i < 16 * 16; ++i) {
+        // Generate a random RGB565 color
+        // Example: just a random 16-bit number
+        test_pixel_buffer[i] = random(0, 0xFFFF);
+    }
+    // decoded_img_buffer = (uint8_t*)test_pixel_buffer; // OLD, incorrect cast
+    decoded_img_buffer = test_pixel_buffer; // CORRECTED: direct assignment, types match
+    decoded_img_width = 16;
+    decoded_img_height = 16;
+    decoded_img_size = sizeof(test_pixel_buffer); // Ensure this is also set
+    new_image_available = true;
+    Serial.println("[InitTestPixelBuffer] Test pixel buffer initialized and new_image_available set to true.");
+}
 
 // --- Temporary Text Label ---
 static lv_obj_t *current_text_label = nullptr;  // Pointer to the currently displayed text label
@@ -330,6 +350,9 @@ void setup()
 
     // 4. Setup the sketch UI
     sketch_setup();
+
+    // 5. Initialize the test pixel buffer with random colors
+    init_test_pixel_buffer();
 
     printf("\n *** Setup Complete *** \n\n");
 }
